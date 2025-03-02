@@ -1,64 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { debounce } from "lodash";
-
-// Fix for Leaflet marker icon issue in Next.js
-const fixLeafletIcon = () => {
-  // Only run on client side
-  if (typeof window === "undefined") return;
-  
-  delete L.Icon.Default.prototype.options.iconUrl;
-  delete L.Icon.Default.prototype.options.iconRetinaUrl;
-  delete L.Icon.Default.prototype.options.shadowUrl;
-  
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
-  });
-};
-
-// Custom pothole marker icons based on severity
-const createPotholeIcons = () => {
-  return {
-    high: new L.Icon({
-      iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }),
-    medium: new L.Icon({
-      iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }),
-    low: new L.Icon({
-      iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    }),
-    user: new L.Icon({
-      iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    })
-  };
-};
 
 interface Pothole {
   id: number;
@@ -80,13 +26,6 @@ const PotholeMap = () => {
   const mapRef = useRef<L.Map | null>(null);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const MIN_FETCH_INTERVAL = 15000; // Minimum 15 seconds between API calls
-  const potholeIcons = useRef<Record<string, L.Icon>>({}); // Store icon instances
-
-  // Fix Leaflet icon issue and initialize custom markers on component mount
-  useEffect(() => {
-    fixLeafletIcon();
-    potholeIcons.current = createPotholeIcons();
-  }, []);
 
   // Get user location when component mounts
   useEffect(() => {
@@ -111,6 +50,37 @@ const PotholeMap = () => {
       );
     }
   }, []);
+
+  // Function to get color based on severity
+  const getSeverityColor = (severity?: string) => {
+    switch (severity) {
+      case "high":
+        return "#FF0000"; // Red
+      case "medium":
+        return "#FFA500"; // Orange
+      case "low":
+        return "#FFFF00"; // Yellow
+      default:
+        return "#3388FF"; // Default blue
+    }
+  };
+
+
+
+  const getSeverityRadius = (severity?: string) => {
+    switch (severity) {
+      case "high":
+        return 14; // Red
+      case "medium":
+        return 6; // Orange
+      case "low":
+        return 2; // Yellow
+      default:
+        return 8; // Default blue
+    }
+  };
+
+
 
   // Function to fetch potholes data
   const fetchPotholes = (lat: number, lng: number) => {
@@ -187,6 +157,22 @@ const PotholeMap = () => {
         image_url: "https://www.tcsinc.org/wp-content/uploads/2021/08/pothole-road.jpg",
         severity: "low",
         reported_at: new Date(Date.now() - 172800000).toISOString() // 2 days ago
+      },
+      {
+        id: 4,
+        latitude: lat - 0.0025,
+        longitude: lng - 0.001,
+        image_url: "https://media.istockphoto.com/id/1307113302/photo/deep-and-wide-water-filled-pot-holes-hampering-safe-transport-along-local-community-access.jpg",
+        severity: "high",
+        reported_at: new Date(Date.now() - 259200000).toISOString() // 3 days ago
+      },
+      {
+        id: 5,
+        latitude: lat + 0.003,
+        longitude: lng - 0.003,
+        image_url: "https://www.fox29.com/wp-content/uploads/2022/04/Pothole-City-Ave.jpg",
+        severity: "medium",
+        reported_at: new Date(Date.now() - 345600000).toISOString() // 4 days ago
       }
     ];
   };
@@ -211,22 +197,6 @@ const PotholeMap = () => {
       }
     };
   }, [location, debouncedFetchPotholes]);
-
-  // Helper function to get the appropriate icon based on pothole severity
-  const getPotholeIcon = (severity?: string) => {
-    if (!severity) return potholeIcons.current.medium;
-    
-    switch (severity.toLowerCase()) {
-      case 'high':
-        return potholeIcons.current.high;
-      case 'medium':
-        return potholeIcons.current.medium;
-      case 'low':
-        return potholeIcons.current.low;
-      default:
-        return potholeIcons.current.medium;
-    }
-  };
 
   const LocationMarker = () => {
     const lastUpdateTime = useRef(0);
@@ -285,11 +255,12 @@ const PotholeMap = () => {
       return () => navigator.geolocation.clearWatch(watcher);
     }, [map]);
 
-    return location ? (
-      <Marker position={location} icon={potholeIcons.current.user}>
-        <Popup>Your location</Popup>
-      </Marker>
-    ) : null;
+    // Return blue circle for current location
+    return location ? <CircleMarker 
+      center={location} 
+      radius={8} 
+      pathOptions={{ color: '#2A81CB', fillColor: '#2A81CB', fillOpacity: 1 }}
+    /> : null;
   };
 
   return (
@@ -306,18 +277,39 @@ const PotholeMap = () => {
             {error}
           </div>
         )}
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 z-10 bg-white p-2 rounded shadow">
+          <h3 className="font-bold text-sm mb-1">Severity Legend</h3>
+          <div className="flex items-center mb-1">
+            <div className="w-4 h-4 rounded-full bg-red-600 mr-2"></div>
+            <span className="text-xs">High</span>
+          </div>
+          <div className="flex items-center mb-1">
+            <div className="w-4 h-4 rounded-full bg-orange-500 mr-2"></div>
+            <span className="text-xs">Medium</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 rounded-full bg-yellow-400 mr-2"></div>
+            <span className="text-xs">Low</span>
+          </div>
+        </div>
         <MapContainer 
           center={mapCenter} 
-          zoom={13} 
+          zoom={12} 
           className="h-full w-full"
         >
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <LocationMarker />
           {potholes.map((pothole) => (
-            <Marker
+            <CircleMarker
               key={pothole.id}
-              position={[pothole.latitude, pothole.longitude]}
-              icon={getPotholeIcon(pothole.severity)}
+              center={[pothole.latitude, pothole.longitude]}
+              radius={getSeverityRadius(pothole.severity)}
+              pathOptions={{ 
+                color: getSeverityColor(pothole.severity),
+                fillColor: getSeverityColor(pothole.severity),
+                fillOpacity: 0.8
+              }}
               eventHandlers={{
                 click: () => setSelectedPothole(pothole),
                 mouseover: () => setSelectedPothole(pothole),
@@ -335,30 +327,9 @@ const PotholeMap = () => {
                   </button>
                 </div>
               </Popup>
-            </Marker>
+            </CircleMarker>
           ))}
         </MapContainer>
-        
-        {/* Legend */}
-        <div className="absolute bottom-4 right-4 z-10 bg-white p-3 rounded shadow opacity-80 hover:opacity-100 transition-opacity">
-          <div className="text-sm font-semibold mb-2">Legend</div>
-          <div className="flex items-center mb-1">
-            <div className="w-4 h-4 bg-red-600 rounded-full mr-2"></div>
-            <span className="text-xs">High Severity</span>
-          </div>
-          <div className="flex items-center mb-1">
-            <div className="w-4 h-4 bg-orange-500 rounded-full mr-2"></div>
-            <span className="text-xs">Medium Severity</span>
-          </div>
-          <div className="flex items-center mb-1">
-            <div className="w-4 h-4 bg-yellow-500 rounded-full mr-2"></div>
-            <span className="text-xs">Low Severity</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
-            <span className="text-xs">Your Location</span>
-          </div>
-        </div>
       </div>
 
       {/* Image Preview Section */}
