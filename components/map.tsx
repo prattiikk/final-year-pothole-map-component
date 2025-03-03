@@ -8,12 +8,13 @@ import { debounce } from "lodash"
 import { Navigation, MapPin, Calendar, AlertTriangle, X, ChevronUp, ChevronDown } from "lucide-react"
 
 interface Pothole {
-    id: number
-    latitude: number
-    longitude: number
-    image_url: string
-    severity?: string
-    reported_at?: string
+  id: string; // MongoDB ObjectId is a string
+  latitude: number;
+  longitude: number;
+  severity: number; // Prisma uses Int, so it should be number
+  reportedBy: string;
+  img: string; // Match the field name in Prisma
+  dateReported: string; // Keeping it as string (ISO format) for consistency
 }
 
 const PotholeMap = () => {
@@ -75,76 +76,80 @@ const PotholeMap = () => {
         }
     }
 
-    // Function to get color based on severity
-    const getSeverityColor = (severity?: string) => {
-        switch (severity) {
-            case "high":
-                return "#FF424F" // Uber red
-            case "medium":
-                return "#FF9E0D" // Orange
-            case "low":
-                return "#FFCD1C" // Yellow
-            default:
-                return "#276EF1" // Uber blue
-        }
+    // Function to get color based on severity (now using number instead of string)
+    const getSeverityColor = (severity?: number) => {
+        if (severity === undefined) return "#276EF1" // Uber blue (default)
+        
+        // Convert number to severity level
+        if (severity >= 7) return "#FF424F" // High - Uber red
+        if (severity >= 4) return "#FF9E0D" // Medium - Orange
+        return "#FFCD1C" // Low - Yellow
     }
 
-    const getSeverityRadius = (severity?: string) => {
-        switch (severity) {
-            case "high":
-                return 10
-            case "medium":
-                return 8
-            case "low":
-                return 6
-            default:
-                return 8
-        }
+    const getSeverityRadius = (severity?: number) => {
+        if (severity === undefined) return 8 // Default
+        
+        // Convert number to size
+        if (severity >= 7) return 10 // High
+        if (severity >= 4) return 8  // Medium
+        return 6 // Low
+    }
+
+    // Get severity label from number
+    const getSeverityLabel = (severity?: number) => {
+        if (severity === undefined) return "Unknown"
+        if (severity >= 7) return "High"
+        if (severity >= 4) return "Medium"
+        return "Low"
     }
 
     // Generate mock pothole data for testing when API is unavailable
     const generateMockPotholes = (lat: number, lng: number): Pothole[] => {
         return [
             {
-                id: 1,
+                id: "1",
                 latitude: lat + 0.002,
                 longitude: lng + 0.003,
-                image_url: "https://www.thestructuralengineer.info/images/news/Large-Pothole.jpeg",
-                severity: "high",
-                reported_at: new Date().toISOString(),
+                img: "https://www.thestructuralengineer.info/images/news/Large-Pothole.jpeg",
+                severity: 8,
+                reportedBy: "user123",
+                dateReported: new Date().toISOString(),
             },
             {
-                id: 2,
+                id: "2",
                 latitude: lat - 0.001,
                 longitude: lng + 0.001,
-                image_url: "https://images.theconversation.com/files/442675/original/file-20220126-19-1i2t7mk.jpg",
-                severity: "medium",
-                reported_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+                img: "https://images.theconversation.com/files/442675/original/file-20220126-19-1i2t7mk.jpg",
+                severity: 5,
+                reportedBy: "user456",
+                dateReported: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
             },
             {
-                id: 3,
+                id: "3",
                 latitude: lat + 0.0015,
                 longitude: lng - 0.002,
-                image_url: "https://www.tcsinc.org/wp-content/uploads/2021/08/pothole-road.jpg",
-                severity: "low",
-                reported_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+                img: "https://www.tcsinc.org/wp-content/uploads/2021/08/pothole-road.jpg",
+                severity: 3,
+                reportedBy: "user789",
+                dateReported: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
             },
             {
-                id: 4,
+                id: "4",
                 latitude: lat - 0.0025,
                 longitude: lng - 0.001,
-                image_url:
-                    "https://media.istockphoto.com/id/1307113302/photo/deep-and-wide-water-filled-pot-holes-hampering-safe-transport-along-local-community-access.jpg",
-                severity: "high",
-                reported_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
+                img: "https://media.istockphoto.com/id/1307113302/photo/deep-and-wide-water-filled-pot-holes-hampering-safe-transport-along-local-community-access.jpg",
+                severity: 9,
+                reportedBy: "user101",
+                dateReported: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
             },
             {
-                id: 5,
+                id: "5",
                 latitude: lat + 0.003,
                 longitude: lng - 0.003,
-                image_url: "https://www.fox29.com/wp-content/uploads/2022/04/Pothole-City-Ave.jpg",
-                severity: "medium",
-                reported_at: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
+                img: "https://www.fox29.com/wp-content/uploads/2022/04/Pothole-City-Ave.jpg",
+                severity: 6,
+                reportedBy: "user202",
+                dateReported: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
             },
         ]
     }
@@ -367,8 +372,8 @@ const PotholeMap = () => {
                                     <div className="flex items-center space-x-2">
                                         <div>
                                             <p className="font-semibold">Pothole #{pothole.id}</p>
-                                            <p className="text-xs">Severity: {pothole.severity}</p>
-                                            <p className="text-xs">Reported: {formatDate(pothole.reported_at || "")}</p>
+                                            <p className="text-xs">Severity: {getSeverityLabel(pothole.severity)}</p>
+                                            <p className="text-xs">Reported: {formatDate(pothole.dateReported)}</p>
                                         </div>
                                     </div>
                                 </Tooltip>
@@ -393,15 +398,15 @@ const PotholeMap = () => {
                         <div className="space-y-2">
                             <div className="flex items-center">
                                 <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF424F" }}></div>
-                                <span className="text-sm">High</span>
+                                <span className="text-sm">High (7-10)</span>
                             </div>
                             <div className="flex items-center">
                                 <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF9E0D" }}></div>
-                                <span className="text-sm">Medium</span>
+                                <span className="text-sm">Medium (4-6)</span>
                             </div>
                             <div className="flex items-center">
                                 <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FFCD1C" }}></div>
-                                <span className="text-sm">Low</span>
+                                <span className="text-sm">Low (1-3)</span>
                             </div>
                         </div>
                     </div>
@@ -454,7 +459,7 @@ const PotholeMap = () => {
 
                         <div className="flex space-x-4 mb-4">
                             <img
-                                src={selectedPothole.image_url || "/placeholder.svg"}
+                                src={selectedPothole.img || "/placeholder.svg"}
                                 alt="Pothole"
                                 className="w-24 h-24 object-cover rounded-lg"
                             />
@@ -468,9 +473,7 @@ const PotholeMap = () => {
                                     <div>
                                         <div className="text-xs text-gray-400">Severity</div>
                                         <div className="font-medium" style={{ color: getSeverityColor(selectedPothole.severity) }}>
-                                            {selectedPothole.severity
-                                                ? selectedPothole.severity.charAt(0).toUpperCase() + selectedPothole.severity.slice(1)
-                                                : "Unknown"}
+                                            {getSeverityLabel(selectedPothole.severity)} ({selectedPothole.severity})
                                         </div>
                                     </div>
                                 </div>
@@ -479,7 +482,7 @@ const PotholeMap = () => {
                                     <div>
                                         <div className="text-xs text-gray-400">Reported</div>
                                         <div className="font-medium">
-                                            {selectedPothole.reported_at ? formatDate(selectedPothole.reported_at) : "Unknown"}
+                                            {formatDate(selectedPothole.dateReported)}
                                         </div>
                                     </div>
                                 </div>
