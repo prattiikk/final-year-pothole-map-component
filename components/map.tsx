@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { MapContainer, TileLayer, CircleMarker, useMapEvents } from "react-leaflet"
+import { MapContainer, TileLayer, CircleMarker, useMapEvents, Tooltip } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import type L from "leaflet"
 import { debounce } from "lodash"
-import { Navigation, MapPin, Calendar, AlertTriangle } from "lucide-react"
+import { Navigation, MapPin, Calendar, AlertTriangle, X, ChevronUp, ChevronDown } from "lucide-react"
 
 interface Pothole {
   id: number
@@ -24,6 +24,10 @@ const PotholeMap = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastFetchTime, setLastFetchTime] = useState(0)
+  const [isLegendOpen, setIsLegendOpen] = useState(true)
+  const [locationName, setLocationName] = useState<string>("")
+  const [mapReady, setMapReady] = useState(false)
+  const [initialLocationSet, setInitialLocationSet] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const MIN_FETCH_INTERVAL = 15000 // Minimum 15 seconds between API calls
@@ -40,6 +44,7 @@ const PotholeMap = () => {
           }
           setLocation(userLocation)
           setMapCenter([userLocation.lat, userLocation.lng])
+          fetchLocationName(userLocation.lat, userLocation.lng)
           setIsLoading(false)
         },
         (error) => {
@@ -51,6 +56,17 @@ const PotholeMap = () => {
       )
     }
   }, [])
+
+  const fetchLocationName = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+      const data = await response.json()
+      setLocationName(data.display_name)
+    } catch (error) {
+      console.error("Error fetching location name:", error)
+      setLocationName("Unknown Location")
+    }
+  }
 
   // Function to get color based on severity
   const getSeverityColor = (severity?: string) => {
@@ -187,7 +203,7 @@ const PotholeMap = () => {
 
   // Fetch potholes when location is set
   useEffect(() => {
-    if (location) {
+    if (location && mapReady) {
       debouncedFetchPotholes(location.lat, location.lng)
     }
 
@@ -197,59 +213,55 @@ const PotholeMap = () => {
         clearTimeout(fetchTimeoutRef.current)
       }
     }
-  }, [location, debouncedFetchPotholes])
+  }, [location, debouncedFetchPotholes, mapReady])
+
+  // Set initial location on map once both map is ready and location is available
+  useEffect(() => {
+    if (mapRef.current && location && mapReady && !initialLocationSet) {
+      // Set map center immediately without animation
+      mapRef.current.setView([location.lat, location.lng], 15, { 
+        animate: false, 
+        duration: 0
+      });
+      setInitialLocationSet(true);
+    }
+  }, [location, mapReady, initialLocationSet]);
 
   const LocationMarker = () => {
-    const lastUpdateTime = useRef(0)
-    const updateInterval = 15000 // 15 seconds
-
     const map = useMapEvents({
-      locationfound(e) {
-        const now = Date.now()
-        if (now - lastUpdateTime.current > updateInterval) {
-          lastUpdateTime.current = now
-          setLocation(e.latlng)
-        }
-      },
       moveend() {
         // Only fetch new data if we aren't already loading
         if (!isLoading) {
           const center = map.getCenter()
-
           // Use debounced fetch to prevent excessive calls
           debouncedFetchPotholes(center.lat, center.lng)
+          fetchLocationName(center.lat, center.lng)
         }
       },
+      load() {
+        setMapReady(true)
+      }
     })
 
     useEffect(() => {
       mapRef.current = map
+      setMapReady(true)
 
-      interface GeoPosition {
-        coords: {
-          latitude: number
-          longitude: number
+      // Watch position for location marker updates, but DON'T auto-center
+      const geoOptions = { enableHighAccuracy: true }
+      
+      const geoSuccess = (position: GeolocationPosition) => {
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
         }
-      }
-
-      const geoSuccess = (position: GeoPosition) => {
-        const now = Date.now()
-        if (now - lastUpdateTime.current > updateInterval) {
-          lastUpdateTime.current = now
-          const newLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          }
-          setLocation(newLocation)
-          map.flyTo(newLocation, map.getZoom())
-        }
+        setLocation(newLocation)
+        // Note: We intentionally do NOT recenter the map here
       }
 
       const geoError = (error: GeolocationPositionError) => {
         console.error("Error getting location:", error)
       }
-
-      const geoOptions = { enableHighAccuracy: true }
 
       const watcher = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions)
 
@@ -282,55 +294,28 @@ const PotholeMap = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-md z-10">
-        <div className="px-4 py-3">
-          <h1 className="text-lg font-semibold text-gray-800">Pothole Map</h1>
-          <p className="text-sm text-gray-500">Showing {potholes.length} potholes in your area</p>
-        </div>
+    <div className="flex flex-col h-screen bg-black text-white">
+      {/* Header - Fixed position and height */}
+      <header className="bg-black border-b border-gray-800 z-20 p-4">
+        <h1 className="text-lg font-semibold">Pothole Map</h1>
+        <p className="text-sm text-gray-400">Current Location: {locationName}</p>
+        <p className="text-sm text-gray-400">Showing {potholes.length} potholes in your area</p>
       </header>
 
-      {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar for legend */}
-        <aside className="w-48 bg-white shadow-md z-10 overflow-y-auto">
-          <div className="p-4">
-            <h2 className="text-sm font-semibold text-gray-800 mb-2">Severity Legend</h2>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF424F" }}></div>
-                <span className="text-sm text-gray-700">High</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF9E0D" }}></div>
-                <span className="text-sm text-gray-700">Medium</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FFCD1C" }}></div>
-                <span className="text-sm text-gray-700">Low</span>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* Map area */}
-        <main className="flex-1 relative overflow-hidden">
-          {isLoading && (
-            <div className="absolute top-2 right-2 z-10 bg-black bg-opacity-70 text-white px-3 py-2 text-xs rounded-lg">
-              Loading...
-            </div>
-          )}
-
-          {error && (
-            <div className="absolute top-2 right-2 z-10 bg-red-500 text-white px-3 py-2 text-xs rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <MapContainer center={mapCenter} zoom={15} className="h-full w-full" zoomControl={false}>
+      {/* Main content area - With proper z-index layering */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* Map area - Lower z-index to stay below UI elements */}
+        <div className="absolute inset-0 z-0">
+          <MapContainer 
+            center={mapCenter} 
+            zoom={15} 
+            className="h-full w-full" 
+            zoomControl={false}
+            whenReady={() => setMapReady(true)}
+            preferCanvas={true} // Improve performance for many markers
+          >
             <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
             />
             <LocationMarker />
@@ -342,47 +327,104 @@ const PotholeMap = () => {
                 pathOptions={{
                   color: getSeverityColor(pothole.severity),
                   fillColor: getSeverityColor(pothole.severity),
-                  fillOpacity: 0.8,
-                  weight: 2,
+                  fillOpacity: 0.6,
+                  weight: 1,
                 }}
                 eventHandlers={{
                   click: () => setSelectedPothole(pothole),
                 }}
-              />
+              >
+                <Tooltip direction="top" offset={[0, -5]} opacity={1}>
+                  <div className="flex items-center space-x-2">
+                    <img
+                      src={pothole.image_url || "/placeholder.svg"}
+                      alt="Pothole"
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                    <div>
+                      <p className="font-semibold">Pothole #{pothole.id}</p>
+                      <p className="text-xs">Severity: {pothole.severity}</p>
+                      <p className="text-xs">Reported: {formatDate(pothole.reported_at || "")}</p>
+                    </div>
+                  </div>
+                </Tooltip>
+              </CircleMarker>
             ))}
           </MapContainer>
+        </div>
 
-          {location && (
-            <button
-              className="absolute bottom-4 right-4 z-10 bg-white rounded-full p-3 shadow-lg"
-              onClick={() => {
-                if (mapRef.current && location) {
-                  mapRef.current.flyTo([location.lat, location.lng], 15)
-                }
-              }}
-            >
-              <Navigation size={20} className="text-gray-700" />
-            </button>
-          )}
-        </main>
-      </div>
-
-      {/* Footer for pothole details */}
-      <footer className="bg-white shadow-md z-10">
-        {selectedPothole ? (
+        {/* UI Elements with higher z-index */}
+        {/* Legend - Higher z-index to appear above map */}
+        <div
+          className={`absolute bottom-4 right-4 z-30 bg-black bg-opacity-80 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${isLegendOpen ? "translate-y-0" : "translate-y-full"}`}
+        >
+          <button
+            className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full bg-black bg-opacity-80 px-4 py-2 rounded-t-lg z-30"
+            onClick={() => setIsLegendOpen(!isLegendOpen)}
+          >
+            {isLegendOpen ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+          </button>
           <div className="p-4">
+            <h2 className="text-sm font-semibold mb-2">Severity Legend</h2>
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF424F" }}></div>
+                <span className="text-sm">High</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FF9E0D" }}></div>
+                <span className="text-sm">Medium</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: "#FFCD1C" }}></div>
+                <span className="text-sm">Low</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {location && (
+          <button
+            className="absolute bottom-24 right-4 z-30 bg-white text-black rounded-full p-3 shadow-lg"
+            onClick={() => {
+              if (mapRef.current && location) {
+                // Set view instantly to user location when button clicked
+                mapRef.current.setView([location.lat, location.lng], 15, {
+                  animate: true,
+                  duration: 0.5
+                });
+              }
+            }}
+          >
+            <Navigation size={20} />
+          </button>
+        )}
+
+        {isLoading && (
+          <div className="absolute top-2 right-2 z-30 bg-black bg-opacity-70 text-white px-3 py-2 text-xs rounded-lg">
+            Loading...
+          </div>
+        )}
+
+        {error && (
+          <div className="absolute top-2 right-2 z-30 bg-red-500 text-white px-3 py-2 text-xs rounded-lg">{error}</div>
+        )}
+
+        {/* Footer for pothole details - Highest z-index to appear above everything */}
+        {selectedPothole && (
+          <div className="absolute bottom-0 left-0 right-0 z-40 bg-black bg-opacity-90 rounded-t-lg shadow-lg p-4">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-lg font-semibold text-gray-800">Pothole #{selectedPothole.id}</h2>
+                <h2 className="text-lg font-semibold">Pothole #{selectedPothole.id}</h2>
                 <div className="flex items-center">
-                  <MapPin size={14} className="text-gray-500 mr-1" />
-                  <span className="text-sm text-gray-500">
+                  <MapPin size={14} className="text-gray-400 mr-1" />
+                  <span className="text-sm text-gray-400">
                     {selectedPothole.latitude.toFixed(6)}, {selectedPothole.longitude.toFixed(6)}
                   </span>
                 </div>
               </div>
-              <button className="p-2 rounded-full hover:bg-gray-100" onClick={() => setSelectedPothole(null)}>
-                <span className="text-xl font-medium text-gray-700">×</span>
+              <button className="p-2 rounded-full hover:bg-gray-800" onClick={() => setSelectedPothole(null)}>
+                <X size={20} />
               </button>
             </div>
 
@@ -393,14 +435,14 @@ const PotholeMap = () => {
                 className="w-24 h-24 object-cover rounded-lg"
               />
               <div className="flex-1 grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg flex items-center">
+                <div className="bg-gray-800 p-3 rounded-lg flex items-center">
                   <AlertTriangle
                     size={16}
                     className="mr-2"
                     style={{ color: getSeverityColor(selectedPothole.severity) }}
                   />
                   <div>
-                    <div className="text-xs text-gray-500">Severity</div>
+                    <div className="text-xs text-gray-400">Severity</div>
                     <div className="font-medium" style={{ color: getSeverityColor(selectedPothole.severity) }}>
                       {selectedPothole.severity
                         ? selectedPothole.severity.charAt(0).toUpperCase() + selectedPothole.severity.slice(1)
@@ -408,11 +450,11 @@ const PotholeMap = () => {
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg flex items-center">
-                  <Calendar size={16} className="mr-2 text-gray-500" />
+                <div className="bg-gray-800 p-3 rounded-lg flex items-center">
+                  <Calendar size={16} className="mr-2 text-gray-400" />
                   <div>
-                    <div className="text-xs text-gray-500">Reported</div>
-                    <div className="font-medium text-gray-800">
+                    <div className="text-xs text-gray-400">Reported</div>
+                    <div className="font-medium">
                       {selectedPothole.reported_at ? formatDate(selectedPothole.reported_at) : "Unknown"}
                     </div>
                   </div>
@@ -421,28 +463,26 @@ const PotholeMap = () => {
             </div>
 
             <button
-              className="w-full bg-black text-white py-2 rounded-lg font-medium"
+              className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
               onClick={() => {
                 if (mapRef.current) {
-                  mapRef.current.flyTo([selectedPothole.latitude, selectedPothole.longitude], 17)
-                  setSelectedPothole(null)
+                  // Fast navigation to pothole
+                  mapRef.current.setView(
+                    [selectedPothole.latitude, selectedPothole.longitude], 
+                    17, 
+                    { animate: true, duration: 0.5 }
+                  );
+                  setSelectedPothole(null);
                 }
               }}
             >
               Navigate to Pothole
             </button>
           </div>
-        ) : (
-          <div className="p-4">
-            <p className="text-sm text-gray-700">
-              {potholes.length > 0 ? "Tap on a pothole marker to see details" : "No potholes found in this area"}
-            </p>
-          </div>
         )}
-      </footer>
+      </div>
     </div>
   )
 }
 
 export default PotholeMap
-
