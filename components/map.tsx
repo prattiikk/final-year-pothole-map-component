@@ -5,16 +5,16 @@ import { MapContainer, TileLayer, CircleMarker, useMapEvents, Tooltip } from "re
 import "leaflet/dist/leaflet.css"
 import type L from "leaflet"
 import { debounce } from "lodash"
-import { Navigation, MapPin, Calendar, AlertTriangle, X, ChevronUp, ChevronDown } from "lucide-react"
+import { Navigation, MapPin, Calendar, AlertTriangle, X, ChevronUp, ChevronDown, Search } from "lucide-react"
 
 interface Pothole {
-  id: string; // MongoDB ObjectId is a string
+  id: string;
   latitude: number;
   longitude: number;
-  severity: number; // Prisma uses Int, so it should be number
+  severity: number;
   reportedBy: string;
-  img: string; // Match the field name in Prisma
-  dateReported: string; // Keeping it as string (ISO format) for consistency
+  img: string;
+  dateReported: string;
 }
 
 const PotholeMap = () => {
@@ -27,15 +27,20 @@ const PotholeMap = () => {
     const [lastFetchTime, setLastFetchTime] = useState(0)
     const [isLegendOpen, setIsLegendOpen] = useState(true)
     const [locationName, setLocationName] = useState<string>("")
-    const [mapReady, setMapReady] = useState(false)
-    const [initialLocationSet, setInitialLocationSet] = useState(false)
+    const [searchQuery, setSearchQuery] = useState<string>("")
+    const [isSearching, setIsSearching] = useState(false)
+    const [lastFetchedCoords, setLastFetchedCoords] = useState<{lat: number, lng: number} | null>(null)
     const mapRef = useRef<L.Map | null>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
     const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const MIN_FETCH_INTERVAL = 15000 // Minimum 15 seconds between API calls
+    const SIGNIFICANT_MOVE_DISTANCE = 0.02 // Approximately 2km
+    const locationInitializedRef = useRef(false)
 
-    // Get user location when component mounts
+    // Get user location once when component mounts
     useEffect(() => {
-        if (navigator.geolocation) {
+        if (navigator.geolocation && !locationInitializedRef.current) {
+            locationInitializedRef.current = true;
             setIsLoading(true)
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -53,7 +58,7 @@ const PotholeMap = () => {
                     setError("Failed to get your location. Using default map view.")
                     setIsLoading(false)
                 },
-                { enableHighAccuracy: true },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
             )
         }
 
@@ -76,11 +81,68 @@ const PotholeMap = () => {
         }
     }
 
-    // Function to get color based on severity (now using number instead of string)
+    // Search for a location by name
+    const searchLocation = async (query: string) => {
+        if (!query.trim()) return;
+        
+        setIsSearching(true);
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            
+            if (data && data.length > 0) {
+                const firstResult = data[0];
+                const lat = parseFloat(firstResult.lat);
+                const lng = parseFloat(firstResult.lon);
+                
+                // Update the map view
+                if (mapRef.current) {
+                    mapRef.current.setView([lat, lng], 15);
+                    // Clear search field after successful search
+                    setSearchQuery("");
+                }
+            } else {
+                setError("No locations found. Try a different search term.");
+                setTimeout(() => setError(null), 3000);
+            }
+        } catch (error) {
+            console.error("Error searching for location:", error);
+            setError("Error searching for location. Please try again.");
+            setTimeout(() => setError(null), 3000);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    // Calculate distance between two points using Haversine formula
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; // Distance in km
+    };
+
+    // Check if we've moved significantly from the last fetch location
+    const hasMovedSignificantly = (lat: number, lng: number) => {
+        if (!lastFetchedCoords) return true;
+        
+        const distance = calculateDistance(
+            lat, lng, 
+            lastFetchedCoords.lat, lastFetchedCoords.lng
+        );
+        
+        return distance > SIGNIFICANT_MOVE_DISTANCE;
+    };
+
+    // Function to get color based on severity
     const getSeverityColor = (severity?: number) => {
         if (severity === undefined) return "#276EF1" // Uber blue (default)
         
-        // Convert number to severity level
         if (severity >= 7) return "#FF424F" // High - Uber red
         if (severity >= 4) return "#FF9E0D" // Medium - Orange
         return "#FFCD1C" // Low - Yellow
@@ -89,7 +151,6 @@ const PotholeMap = () => {
     const getSeverityRadius = (severity?: number) => {
         if (severity === undefined) return 8 // Default
         
-        // Convert number to size
         if (severity >= 7) return 10 // High
         if (severity >= 4) return 8  // Medium
         return 6 // Low
@@ -157,6 +218,13 @@ const PotholeMap = () => {
     // Function to fetch potholes data
     const fetchPotholes = useCallback((lat: number, lng: number) => {
         const now = Date.now()
+        
+        // Check if we've moved significantly from the last fetch location
+        if (!hasMovedSignificantly(lat, lng) && lastFetchedCoords) {
+            console.log("Not moved significantly, skipping fetch");
+            return;
+        }
+        
         // If we've fetched too recently, schedule a future fetch and return
         if (now - lastFetchTime < MIN_FETCH_INTERVAL) {
             if (fetchTimeoutRef.current) {
@@ -175,78 +243,129 @@ const PotholeMap = () => {
 
         setIsLoading(true)
         setLastFetchTime(now)
+        setLastFetchedCoords({ lat, lng })
 
-        // API call
+        // Try to fetch from API, fallback to mock data in case of issues
         fetch(`/api/pothole?lat=${lat}&lng=${lng}&radius=10000`)
-            .then((res) => {
+            .then(async (res) => {
                 if (!res.ok) {
-                    // If API returns 404, generate mock data for testing instead of failing
-                    if (res.status === 404) {
-                        console.log("API endpoint not found. Using mock data instead.")
-                        return { potholes: generateMockPotholes(lat, lng) }
-                    }
                     throw new Error(`API error: ${res.status}`)
                 }
                 return res.json()
             })
             .then((data) => {
-                console.log("result : ", data);
+                console.log("API data received:", data.data);
                 
-                // Check if data is an array or has a potholes property
-                let potholeData: Pothole[] = [];
+                // // Handle data in various possible formats
+                // let potholeData: Pothole[] = [];
                 
-                if (Array.isArray(data)) {
-                    potholeData = data;
-                } else if (data && Array.isArray(data.potholes)) {
-                    potholeData = data.potholes;
-                } else if (data) {
-                    // In case API returns an object with different structure
-                    potholeData = generateMockPotholes(lat, lng);
-                    console.warn("Unexpected data format from API, using mock data");
+                // if (Array.isArray(data)) {
+                //     potholeData = data.data;
+                // } else if (data && Array.isArray(data.potholes)) {
+                //     potholeData = data.potholes;
+                // }
+                
+                // If we still have no valid data, use mock data
+                if (data.data.length === 0) {
+                    console.log("No potholes in API response, using mock data");
+                    data.data = generateMockPotholes(lat, lng);
+                    setError("Using test data: No real potholes found");
+                } else {
+                    setError(null);
                 }
                 
-                console.log("processed potholes : ", potholeData);
-                setPotholes(potholeData)
-                setIsLoading(false)
-                setError(null)
+                console.log("Processed potholes:", data.data);
+                setPotholes(data.data)
             })
             .catch((err) => {
                 console.error("Error fetching potholes:", err)
-
-                // If fetch completely fails, still provide mock data for testing
+                // Use mock data when API fails
+                console.log("Using mock data due to API error");
                 const mockData = generateMockPotholes(lat, lng)
                 setPotholes(mockData)
-
                 setError("Using test data: API unavailable")
+            })
+            .finally(() => {
                 setIsLoading(false)
             })
-    }, [lastFetchTime]) // Only re-create when lastFetchTime changes
+    }, [lastFetchTime, lastFetchedCoords, hasMovedSignificantly]) // Dependencies
 
-    // Create a debounced version of fetchPotholes
+    // Create a debounced version of fetchPotholes that persists across renders
     const debouncedFetchPotholes = useRef(
         debounce((lat: number, lng: number) => {
             fetchPotholes(lat, lng)
         }, 1000)
     ).current
 
-    // Fetch potholes when location is set
-    useEffect(() => {
-        if (location && mapReady) {
-            debouncedFetchPotholes(location.lat, location.lng)
-        }
-    }, [location, debouncedFetchPotholes, mapReady, fetchPotholes])
+    // Fetch potholes when map center changes
+    const updateMapData = useCallback((lat: number, lng: number) => {
+        debouncedFetchPotholes(lat, lng);
+        fetchLocationName(lat, lng);
+    }, [debouncedFetchPotholes]);
 
-    // Set initial location on map once both map is ready and location is available
-    useEffect(() => {
-        if (mapRef.current && location && mapReady && !initialLocationSet) {
-            // Set map center immediately without animation
-            mapRef.current.setView([location.lat, location.lng], 15, {
-                animate: false,
-                duration: 0
-            });
-            setInitialLocationSet(true);
+    // LocationMarker component for handling map events and displaying user location
+    const LocationMarker = () => {
+        const map = useMapEvents({
+            moveend() {
+                if (!isLoading) {
+                    const center = map.getCenter()
+                    updateMapData(center.lat, center.lng);
+                }
+            },
+            load() {
+                mapRef.current = map;
+                // Center map on user location if available
+                if (location) {
+                    map.setView([location.lat, location.lng], 15, { animate: false });
+                    updateMapData(location.lat, location.lng);
+                }
+            }
+        });
+
+        // Set map reference once available
+        useEffect(() => {
+            if (map && !mapRef.current) {
+                mapRef.current = map;
+            }
+        }, [map]);
+
+        // Center map when location changes (only on first location set)
+        useEffect(() => {
+            if (mapRef.current && location && !locationInitializedRef.current) {
+                locationInitializedRef.current = true;
+                mapRef.current.setView([location.lat, location.lng], 15, { animate: false });
+                updateMapData(location.lat, location.lng);
+            }
+        }, [location]);
+
+        // Return blue circle for current location
+        return location ? (
+            <CircleMarker
+                center={location}
+                radius={6}
+                pathOptions={{ color: "#276EF1", fillColor: "#276EF1", fillOpacity: 1 }}
+            />
+        ) : null;
+    };
+
+    const formatDate = (dateString: string) => {
+        try {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now.getTime() - date.getTime());
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) {
+                return "Today";
+            } else if (diffDays === 1) {
+                return "Yesterday";
+            } else {
+                return `${diffDays} days ago`;
+            }
+        } catch (e) {
+            return "Unknown date" + e;
         }
-    }, [location, mapReady, initialLocationSet]);
+    };
 
     // Clean up debounced function on unmount
     useEffect(() => {
@@ -257,96 +376,79 @@ const PotholeMap = () => {
         };
     }, [debouncedFetchPotholes]);
 
-    const LocationMarker = () => {
-        const map = useMapEvents({
-            moveend() {
-                // Only fetch new data if we aren't already loading
-                if (!isLoading) {
-                    const center = map.getCenter()
-                    // Use debounced fetch to prevent excessive calls
-                    debouncedFetchPotholes(center.lat, center.lng)
-                    fetchLocationName(center.lat, center.lng)
-                }
-            },
-            load() {
-                // This is the first place where mapReady is set
-                setMapReady(true)
-                mapRef.current = map
-            }
-        })
-
-        useEffect(() => {
-            // Watch position for location marker updates, but DON'T auto-center
-            const geoOptions = { enableHighAccuracy: true };
-
-            const geoSuccess = (position: GeolocationPosition) => {
-                const newLocation = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                };
-                setLocation(newLocation);
-                // Note: We intentionally do NOT recenter the map here
-            };
-
-            const geoError = (error: GeolocationPositionError) => {
-                console.error("Error getting location:", error);
-            };
-
-            const watcher = navigator.geolocation.watchPosition(geoSuccess, geoError, geoOptions);
-
-            return () => {
-                navigator.geolocation.clearWatch(watcher);
-            };
-        }, []); // Empty deps array is correct here - this only runs on mount
-
-        // Return blue circle for current location
-        return location ? (
-            <CircleMarker
-                center={location}
-                radius={6}
-                pathOptions={{ color: "#276EF1", fillColor: "#276EF1", fillOpacity: 1 }}
-            />
-        ) : null
-    }
-
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString)
-        const now = new Date()
-        const diffTime = Math.abs(now.getTime() - date.getTime())
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-
-        if (diffDays === 0) {
-            return "Today"
-        } else if (diffDays === 1) {
-            return "Yesterday"
-        } else {
-            return `${diffDays} days ago`
-        }
-    }
+    // Handle search form submission
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        searchLocation(searchQuery);
+    };
 
     // Ensure potholes is always an array to avoid mapping errors
     const safePotholes = Array.isArray(potholes) ? potholes : [];
 
     return (
         <div className="flex flex-col h-screen bg-black text-white">
-            {/* Header - Fixed position and height */}
+            {/* Header */}
             <header className="bg-black border-b border-gray-800 z-20 p-4">
-                <h1 className="text-lg font-semibold">Pothole Map</h1>
-                <p className="text-sm text-gray-400">Current Location: {locationName}</p>
-                <p className="text-sm text-gray-400">Showing {safePotholes.length} potholes in your area</p>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+                    <div>
+                        <h1 className="text-lg font-semibold">Pothole Map</h1>
+                        <p className="text-sm text-gray-400">Current Location: {locationName}</p>
+                        <p className="text-sm text-gray-400">Showing {safePotholes.length} potholes in your area</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        {/* Search form */}
+                        <form onSubmit={handleSearchSubmit} className="flex items-center">
+                            <div className="relative flex-1">
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search for a location..."
+                                    className="bg-gray-900 text-white border border-gray-700 rounded-lg py-2 px-4 pr-10 w-full focus:outline-none focus:border-blue-500"
+                                />
+                                <button 
+                                    type="submit" 
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400"
+                                    disabled={isSearching}
+                                >
+                                    <Search size={16} />
+                                </button>
+                            </div>
+                        </form>
+                        
+                        {/* Current location button */}
+                        {location && (
+                            <button
+                                className="bg-blue-600 text-white rounded-lg px-3 py-2 flex items-center"
+                                onClick={() => {
+                                    if (mapRef.current && location) {
+                                        mapRef.current.setView([location.lat, location.lng], 15, {
+                                            animate: true,
+                                            duration: 0.5
+                                        });
+                                    }
+                                }}
+                            >
+                                <Navigation size={16} className="mr-1" />
+                                <span>My Location</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
             </header>
 
-            {/* Main content area - With proper z-index layering */}
+            {/* Main content area */}
             <div className="flex-1 relative overflow-hidden">
-                {/* Map area - Lower z-index to stay below UI elements */}
+                {/* Map area */}
                 <div className="absolute inset-0 z-0">
                     <MapContainer
                         center={mapCenter}
                         zoom={15}
                         className="h-full w-full"
                         zoomControl={false}
-                        whenReady={() => setMapReady(true)}
-                        preferCanvas={true} // Improve performance for many markers
+                        preferCanvas={true}
                     >
                         <TileLayer
                             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -382,8 +484,8 @@ const PotholeMap = () => {
                     </MapContainer>
                 </div>
 
-                {/* UI Elements with higher z-index */}
-                {/* Legend - Higher z-index to appear above map */}
+                {/* UI Elements */}
+                {/* Legend */}
                 <div
                     className={`absolute bottom-4 right-4 z-30 bg-black bg-opacity-80 rounded-lg shadow-lg transition-all duration-300 ease-in-out ${isLegendOpen ? "translate-y-0" : "translate-y-full"}`}
                 >
@@ -412,34 +514,38 @@ const PotholeMap = () => {
                     </div>
                 </div>
 
-                {location && (
-                    <button
-                        className="absolute bottom-24 right-4 z-30 bg-white text-black rounded-full p-3 shadow-lg"
-                        onClick={() => {
-                            if (mapRef.current && location) {
-                                // Set view instantly to user location when button clicked
-                                mapRef.current.setView([location.lat, location.lng], 15, {
-                                    animate: true,
-                                    duration: 0.5
-                                });
-                            }
-                        }}
-                    >
-                        <Navigation size={20} />
-                    </button>
-                )}
+                {/* Mobile current location button (only shown on smaller screens) */}
+                <div className="md:hidden">
+                    {location && (
+                        <button
+                            className="absolute bottom-24 right-4 z-30 bg-white text-black rounded-full p-3 shadow-lg"
+                            onClick={() => {
+                                if (mapRef.current && location) {
+                                    mapRef.current.setView([location.lat, location.lng], 15, {
+                                        animate: true,
+                                        duration: 0.5
+                                    });
+                                }
+                            }}
+                        >
+                            <Navigation size={20} />
+                        </button>
+                    )}
+                </div>
 
+                {/* Loading indicator */}
                 {isLoading && (
                     <div className="absolute top-2 right-2 z-30 bg-black bg-opacity-70 text-white px-3 py-2 text-xs rounded-lg">
                         Loading...
                     </div>
                 )}
 
+                {/* Error message */}
                 {error && (
                     <div className="absolute top-2 right-2 z-30 bg-red-500 text-white px-3 py-2 text-xs rounded-lg">{error}</div>
                 )}
 
-                {/* Footer for pothole details - Highest z-index to appear above everything */}
+                {/* Pothole details panel */}
                 {selectedPothole && (
                     <div className="absolute bottom-0 left-0 right-0 z-40 bg-black bg-opacity-90 rounded-t-lg shadow-lg p-4">
                         <div className="flex justify-between items-start mb-4">
@@ -458,10 +564,17 @@ const PotholeMap = () => {
                         </div>
 
                         <div className="flex space-x-4 mb-4">
+                            {/* Handle both base64 and URL image formats */}
                             <img
-                                src={selectedPothole.img || "/placeholder.svg"}
+                                src={`data:image/jpeg;base64,${selectedPothole.img}`}
                                 alt="Pothole"
-                                className="w-24 h-24 object-cover rounded-lg"
+                                width={96}
+                                height={96}
+                                className="object-cover rounded-lg"
+                                onError={(e) => {
+                                    // Fallback image on error
+                                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/96x96?text=No+Image';
+                                }}
                             />
                             <div className="flex-1 grid grid-cols-2 gap-4">
                                 <div className="bg-gray-800 p-3 rounded-lg flex items-center">
@@ -493,7 +606,6 @@ const PotholeMap = () => {
                             className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                             onClick={() => {
                                 if (mapRef.current) {
-                                    // Fast navigation to pothole
                                     mapRef.current.setView(
                                         [selectedPothole.latitude, selectedPothole.longitude],
                                         17,
