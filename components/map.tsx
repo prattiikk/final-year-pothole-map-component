@@ -957,7 +957,7 @@ const PotholeMap = () => {
                         {selectedPothole.img && (
                             <div className="mb-4">
                                 <img
-                                    src={selectedPothole.img}
+                                    src={`data:image/jpeg;base64,${selectedPothole.img}`}
                                     alt="Pothole"
                                     className="w-full h-48 object-cover rounded-lg"
                                 />
