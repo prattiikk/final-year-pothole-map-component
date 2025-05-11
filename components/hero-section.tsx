@@ -4,7 +4,11 @@ import { useRef, useEffect } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
 import { ArrowDown } from "lucide-react"
 
-export function HeroSection() {
+interface HeroSectionProps {
+  onViewMapClick?: () => void
+}
+
+export function HeroSection({ onViewMapClick }: HeroSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -50,8 +54,9 @@ export function HeroSection() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-medium"
+            onClick={onViewMapClick}
           >
-            Get Started
+            View Map
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
