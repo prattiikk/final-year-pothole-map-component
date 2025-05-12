@@ -293,158 +293,81 @@ const PotholeMap = () => {
         return "Low"
     }
 
-    // Generate mock pothole data for testing when API is unavailable
-    const generateMockPotholes = (lat: number, lng: number): Pothole[] => {
-        return [
-            {
-                id: "1",
-                latitude: lat + 0.002,
-                longitude: lng + 0.003,
-                img: "https://www.thestructuralengineer.info/images/news/Large-Pothole.jpeg",
-                severity: 8,
-                reportedBy: "user123",
-                dateReported: new Date().toISOString(),
-            },
-            {
-                id: "2",
-                latitude: lat - 0.001,
-                longitude: lng + 0.001,
-                img: "https://images.theconversation.com/files/442675/original/file-20220126-19-1i2t7mk.jpg",
-                severity: 5,
-                reportedBy: "user456",
-                dateReported: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-            },
-            {
-                id: "3",
-                latitude: lat + 0.0015,
-                longitude: lng - 0.002,
-                img: "https://www.tcsinc.org/wp-content/uploads/2021/08/pothole-road.jpg",
-                severity: 3,
-                reportedBy: "user789",
-                dateReported: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-            },
-            {
-                id: "4",
-                latitude: lat - 0.0025,
-                longitude: lng - 0.001,
-                img: "https://media.istockphoto.com/id/1307113302/photo/deep-and-wide-water-filled-pot-holes-hampering-safe-transport-along-local-community-access.jpg",
-                severity: 9,
-                reportedBy: "user101",
-                dateReported: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-            },
-            {
-                id: "5",
-                latitude: lat + 0.003,
-                longitude: lng - 0.003,
-                img: "https://www.fox29.com/wp-content/uploads/2022/04/Pothole-City-Ave.jpg",
-                severity: 6,
-                reportedBy: "user202",
-                dateReported: new Date(Date.now() - 345600000).toISOString(), // 4 days ago
-            },
-        ]
-    }
+// Modify the fetchPotholes function to handle the new data structure
+const fetchPotholes = useCallback(
+    (lat: number, lng: number) => {
+        const now = Date.now()
 
-    // Generate more mock data for testing the radius feature
-    const generateMoreMockPotholes = (lat: number, lng: number, count = 20): Pothole[] => {
-        const basePotholes = generateMockPotholes(lat, lng);
-        const additionalPotholes: Pothole[] = [];
-
-        // Generate random potholes within the search radius
-        for (let i = 0; i < count; i++) {
-            // Random angle
-            const angle = Math.random() * 2 * Math.PI;
-            // Random distance within search radius (in degrees, roughly)
-            // 0.01 degrees is approximately 1.11km
-            const distance = (Math.random() * searchRadius * 0.009);
-
-            // Convert polar to cartesian coordinates
-            const latOffset = distance * Math.cos(angle);
-            const lngOffset = distance * Math.sin(angle);
-
-            additionalPotholes.push({
-                id: `additional-${i + 1}`,
-                latitude: lat + latOffset,
-                longitude: lng + lngOffset,
-                img: "https://www.fox29.com/wp-content/uploads/2022/04/Pothole-City-Ave.jpg",
-                severity: Math.floor(Math.random() * 10) + 1, // Random severity between 1-10
-                reportedBy: `user${Math.floor(Math.random() * 1000)}`,
-                dateReported: new Date(Date.now() - Math.floor(Math.random() * 30) * 86400000).toISOString(), // Random date within last 30 days
-            });
+        // Check if we've moved significantly from the last fetch location
+        if (!hasMovedSignificantly(lat, lng) && lastFetchedCoords) {
+            console.log("Not moved significantly, skipping fetch")
+            return
         }
 
-        return [...basePotholes, ...additionalPotholes];
-    };
-
-    // Function to fetch potholes data
-    const fetchPotholes = useCallback(
-        (lat: number, lng: number) => {
-            const now = Date.now()
-
-            // Check if we've moved significantly from the last fetch location
-            if (!hasMovedSignificantly(lat, lng) && lastFetchedCoords) {
-                console.log("Not moved significantly, skipping fetch")
-                return
+        // If we've fetched too recently, schedule a future fetch and return
+        if (now - lastFetchTime < MIN_FETCH_INTERVAL) {
+            if (fetchTimeoutRef.current) {
+                clearTimeout(fetchTimeoutRef.current)
             }
 
-            // If we've fetched too recently, schedule a future fetch and return
-            if (now - lastFetchTime < MIN_FETCH_INTERVAL) {
-                if (fetchTimeoutRef.current) {
-                    clearTimeout(fetchTimeoutRef.current)
+            fetchTimeoutRef.current = setTimeout(
+                () => {
+                    fetchPotholes(lat, lng)
+                },
+                MIN_FETCH_INTERVAL - (now - lastFetchTime),
+            )
+
+            return
+        }
+
+        setIsLoading(true)
+        setLastFetchTime(now)
+        setLastFetchedCoords({ lat, lng })
+
+        // Fetch from API with new parameters
+        fetch(`/api/detections?lat=${lat}&lng=${lng}&radius=${searchRadius}`)
+            .then(async (res) => {
+                if (!res.ok) {
+                    throw new Error(`API error: ${res.status}`)
+                }
+                return res.json()
+            })
+            .then((response) => {
+                const fetchedData = response.data || []
+
+                // Transform API data to match existing Pothole interface
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                //@ts-expect-error
+                const transformedPotholes = fetchedData.map(detection => ({
+                    id: detection.id,
+                    latitude: detection.location.latitude,
+                    longitude: detection.location.longitude,
+                    severity: detection.detection.highestSeverity 
+                        ? parseInt(detection.detection.highestSeverity) * 2 // Adjust severity scaling if needed
+                        : 5, // Default severity
+                    reportedBy: detection.metadata.username || 'Anonymous',
+                    img: detection.images.annotated || '', // Base64 encoded image
+                    dateReported: detection.metadata.createdAt
+                }))
+
+                if (transformedPotholes.length === 0) {
+                    setError("No potholes found in this area")
+                } else {
+                    setError(null)
                 }
 
-                fetchTimeoutRef.current = setTimeout(
-                    () => {
-                        fetchPotholes(lat, lng)
-                    },
-                    MIN_FETCH_INTERVAL - (now - lastFetchTime),
-                )
-
-                return
-            }
-
-            setIsLoading(true)
-            setLastFetchTime(now)
-            setLastFetchedCoords({ lat, lng })
-
-            // Try to fetch from API, fallback to mock data in case of issues
-            fetch(`/api/pothole?lat=${lat}&lng=${lng}&radius=${searchRadius}`)
-                .then(async (res) => {
-                    if (!res.ok) {
-                        throw new Error(`API error: ${res.status}`)
-                    }
-                    return res.json()
-                })
-                .then((data) => {
-                    console.log("API data received:", data.data)
-                    let fetched_data = data.data
-
-                    // If we still have no valid data, use mock data
-                    if (!fetched_data || fetched_data.length === 0) {
-                        console.log("No potholes in API response, using mock data")
-                        fetched_data = generateMoreMockPotholes(lat, lng, 20)
-                        setError("Using test data: No real potholes found")
-                    } else {
-                        setError(null)
-                    }
-
-                    console.log("Processed potholes:", fetched_data)
-                    setPotholes(fetched_data)
-                })
-                .catch((err) => {
-                    console.error("Error fetching potholes:", err)
-                    // Use mock data when API fails
-                    console.log("Using mock data due to API error")
-                    const mockData = generateMoreMockPotholes(lat, lng, 20)
-                    setPotholes(mockData)
-                    setError("Using test data: API unavailable")
-                })
-                .finally(() => {
-                    setIsLoading(false)
-                })
-        },
-        [lastFetchTime, lastFetchedCoords, searchRadius],
-    ) // Dependencies
-
+                setPotholes(transformedPotholes)
+            })
+            .catch((err) => {
+                console.error("Error fetching potholes:", err)
+                setError("Network issue, please connect to internet")
+            })
+            .finally(() => {
+                setIsLoading(false)
+            })
+    },
+    [lastFetchTime, lastFetchedCoords, searchRadius],
+)
     // Create a debounced version of fetchPotholes that persists across renders
     const debouncedFetchPotholes = useRef(
         debounce((lat: number, lng: number) => {
