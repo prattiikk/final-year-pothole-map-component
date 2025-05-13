@@ -10,7 +10,7 @@ import { debounce } from "lodash"
 import { Navigation, Search, X, AlertTriangle } from "lucide-react"
 import currentLocationIcon from "./StickFigure"
 import { MapSidebar } from "./map-sidebar"
-import { HeatmapLayer } from "@/components/heatlayerfetcher"
+import { HeatLayer, HeatmapLegend } from "@/components/heatmap-layer"
 
 interface Pothole {
   id: string
@@ -447,7 +447,7 @@ const PotholeMap = () => {
     }, [location])
 
     // Return blue circle for current location
-    return location ? <Marker position={location} icon={currentLocationIcon} /> : null
+    return location && !showHeatmap ? <Marker position={location} icon={currentLocationIcon} /> : null
   }
 
   const formatDate = (dateString: string) => {
@@ -564,7 +564,7 @@ const PotholeMap = () => {
     return stats
   }
 
-  const stats = calculateStatistics()
+  //  const stats = calculateStatistics()
 
   return (
     <div className="flex flex-col h-full bg-black text-white">
@@ -656,31 +656,42 @@ const PotholeMap = () => {
 
             {/* Heatmap layer */}
             {showHeatmap && (
-
-              <HeatmapLayer data={potholes} />
+              <>
+                <HeatLayer
+                  points={filteredPotholes.map((pothole) => ({
+                    latitude: pothole.latitude,
+                    longitude: pothole.longitude,
+                    severity: pothole.severity >= 7 ? 8 : pothole.severity >= 4 ? 5 : 3,
+                  }))}
+                  radius={25}
+                  blur={15}
+                />
+                <HeatmapLegend />
+              </>
             )}
 
             <LocationMarker />
-            {!showHeatmap && filteredPotholes.map((pothole) => (
-              <CircleMarker
-                key={pothole.id}
-                center={[pothole.latitude, pothole.longitude]}
-                radius={getSeverityRadius(pothole.severity)}
-                pathOptions={{
-                  fillColor: getSeverityColor(pothole.severity),
-                  color: "white",
-                  weight: 1,
-                  fillOpacity: 0.8,
-                }}
-                eventHandlers={{
-                  click: () => {
-                    setSelectedPothole(pothole)
-                  },
-                }}
-              >
-                <Tooltip>Severity: {getSeverityLabel(pothole.severity)}</Tooltip>
-              </CircleMarker>
-            ))}
+            {!showHeatmap &&
+              filteredPotholes.map((pothole) => (
+                <CircleMarker
+                  key={pothole.id}
+                  center={[pothole.latitude, pothole.longitude]}
+                  radius={getSeverityRadius(pothole.severity)}
+                  pathOptions={{
+                    fillColor: getSeverityColor(pothole.severity),
+                    color: "white",
+                    weight: 1,
+                    fillOpacity: 0.8,
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedPothole(pothole)
+                    },
+                  }}
+                >
+                  <Tooltip>Severity: {getSeverityLabel(pothole.severity)}</Tooltip>
+                </CircleMarker>
+              ))}
           </MapContainer>
         </div>
         <MapSidebar

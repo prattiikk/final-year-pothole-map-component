@@ -198,10 +198,10 @@ export function MapSidebar({
             {activeTab === "filters" && (
               <div className="space-y-6">
                 {/* Heatmap toggle */}
-                <div className="bg-gray-800 rounded-lg p-3">
+                <div className={`bg-gray-800 rounded-lg p-3 ${showHeatmap ? "border border-blue-500/50" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <Flame size={18} className="mr-2 text-orange-500" />
+                      <Flame size={18} className={`mr-2 ${showHeatmap ? "text-blue-500" : "text-orange-500"}`} />
                       <span className="font-medium">Heatmap Overlay</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -214,7 +214,11 @@ export function MapSidebar({
                       <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">Toggle to show heatmap overlay on the map</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {showHeatmap
+                      ? "Heatmap active - displaying pothole intensity"
+                      : "Toggle to show heatmap overlay on the map"}
+                  </p>
                 </div>
 
                 {/* Search radius slider */}
