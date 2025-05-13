@@ -1,137 +1,86 @@
 "use client"
 
 import { useRef, useEffect, useState } from "react"
-import { MapContainer, TileLayer, Circle, Tooltip, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, Tooltip, useMap, Circle } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
 
+// Dynamically import leaflet.heat on client side only
+const loadHeatLayer = async () => {
+  // Dynamic import for client-side only code
+  if (typeof window !== 'undefined') {
+    await import('leaflet.heat');
+    return true;
+  }
+  return false;
+};
+
 // Force the Leaflet map to properly render in Next.js
 const MapResizer = () => {
-  const map = useMap()
+  const map = useMap();
   useEffect(() => {
     setTimeout(() => {
-      map.invalidateSize()
-    }, 0)
-  }, [map])
-  return null
-}
+      map.invalidateSize();
+    }, 0);
+  }, [map]);
+  return null;
+};
 
-// Create a custom CanvasHeatmapLayer component
-const CanvasHeatmapLayer = ({ data, maxIntensity = 10 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const map = useMap()
+// Custom React wrapper for Leaflet.heat
+const HeatLayer = ({ points, radius = 25, blur = 15, maxZoom = 18, max = 10, gradient = null }) => {
+  const map = useMap();
+  const layerRef = useRef(null);
+  const [isHeatLayerLoaded, setIsHeatLayerLoaded] = useState(false);
   
+  // Load the heat library
   useEffect(() => {
-    if (!data || data.length === 0) return
+    loadHeatLayer().then(result => {
+      setIsHeatLayerLoaded(result);
+    });
+  }, []);
+  
+  // Add the heat layer once library and points are available
+  useEffect(() => {
+    if (!isHeatLayerLoaded || !points || points.length === 0) return;
     
-    const canvas = canvasRef.current
-    if (!canvas) return
-    
-    const ctx = canvas.getContext('2d')
-    
-    // Function to update canvas on map move or zoom
-    const updateCanvas = () => {
-      if (!canvas || !ctx) return
-      
-      // Get current map bounds
-      const mapSize = map.getSize()
-      
-      // Set canvas dimensions to match map
-      canvas.width = mapSize.x
-      canvas.height = mapSize.y
-      
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
-      // Draw heatmap points
-      data.forEach((item: { latitude: any; location: { latitude: any; longitude: any }; longitude: any; severity: number; detection: { highestSeverity: { toString: () => string }; totalDetections: number }; totalDetections: number }) => {
-        // Check for location data in both direct and nested formats
-        const latitude = item.latitude || item.location?.latitude
-        const longitude = item.longitude || item.location?.longitude
-        
-        // Skip invalid location data
-        if (!latitude || !longitude) return
-        
-        // Convert lat/lng to pixel coordinates
-        const pixelPoint = map.latLngToContainerPoint([latitude, longitude])
-        
-        // Calculate severity - handle different possible structures
-        let severity = 1
-        
-        // Check for severity in different possible locations in structure
-        if (item.severity) {
-          severity = item.severity
-        } else if (item.detection?.highestSeverity) {
-          const severityStr = item.detection.highestSeverity.toString().toUpperCase()
-          if (severityStr === "HIGH") severity = 8
-          else if (severityStr === "MEDIUM") severity = 5
-          else if (severityStr === "LOW") severity = 2
-        } else if (item.detection?.totalDetections) {
-          severity = Math.min(10, Math.max(1, item.detection.totalDetections))
-        } else if (item.totalDetections) {
-          severity = Math.min(10, Math.max(1, item.totalDetections))
-        }
-        
-        // Determine radius based on severity and zoom level
-        const zoomFactor = Math.max(1, map.getZoom() / 10)
-        const radius = (severity >= 7 ? 30 : severity >= 4 ? 25 : 20) * zoomFactor
-        
-        // Set color based on severity
-        let color
-        if (severity >= 7) {
-          color = "#FF424F" // High - Red
-        } else if (severity >= 4) {
-          color = "#FF9E0D" // Medium - Orange
-        } else {
-          color = "#FFCD1C" // Low - Yellow
-        }
-        
-        // Create and draw radial gradient
-        const gradient = ctx.createRadialGradient(pixelPoint.x, pixelPoint.y, 0, pixelPoint.x, pixelPoint.y, radius)
-        gradient.addColorStop(0, color.replace(')', ', 0.8)').replace('rgb', 'rgba'))
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-        
-        ctx.beginPath()
-        ctx.fillStyle = gradient
-        ctx.arc(pixelPoint.x, pixelPoint.y, radius, 0, Math.PI * 2)
-        ctx.fill()
-      })
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current);
     }
     
-    // Initial render
-    updateCanvas()
+    const options = {
+      radius,
+      blur,
+      maxZoom,
+      max,
+      gradient: gradient || {
+        0.1: 'blue',
+        0.3: 'cyan',
+        0.5: 'lime',
+        0.7: 'yellow',
+        0.9: 'red'
+      }
+    };
     
-    // Add event listeners for map movements
-    map.on('move', updateCanvas)
-    map.on('zoom', updateCanvas)
-    map.on('resize', updateCanvas)
+    // Create and add the heat layer
+    layerRef.current = L.heatLayer(points, options).addTo(map);
     
     return () => {
-      // Clean up event listeners
-      map.off('move', updateCanvas)
-      map.off('zoom', updateCanvas)
-      map.off('resize', updateCanvas)
-    }
-  }, [map, data, maxIntensity])
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+      }
+    };
+  }, [map, points, radius, blur, maxZoom, max, gradient, isHeatLayerLoaded]);
   
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute top-0 left-0 z-10 pointer-events-none"
-      style={{ 
-        width: '100%',
-        height: '100%'
-      }}
-    />
-  )
-}
+  return null;
+};
 
+// Legend component
 const Legend = () => {
   return (
-    <div className="absolute bottom-8 left-4 z-20 bg-black bg-opacity-70 p-3 rounded-md">
-      <div className="text-white text-xs mb-1">Detection Severity</div>
-      <div className="flex h-6 w-40">
-        <div className="flex-1 h-full bg-gradient-to-r from-yellow-300 via-orange-400 to-red-500" />
+    <div className="absolute bottom-6 left-4 z-20 bg-black bg-opacity-70 p-3 rounded-md">
+      <div className="text-white text-xs mb-2 font-semibold">Detection Intensity</div>
+      <div className="flex h-6 w-48">
+        <div className="flex-1 h-full bg-gradient-to-r from-blue-500 via-cyan-400 via-green-400 via-yellow-300 to-red-500" />
       </div>
       <div className="flex justify-between text-white text-xs mt-1">
         <span>Low</span>
@@ -139,56 +88,76 @@ const Legend = () => {
         <span>High</span>
       </div>
     </div>
-  )
-}
+  );
+};
 
 interface HeatmapVisualizationProps {
   data: any[] // Using any to flexibly handle different data structures
   center?: [number, number]
   zoom?: number
-  showMarkers?: boolean
+  showPoints?: boolean
   debug?: boolean
+  // Heatmap specific options
+  radius?: number
+  blur?: number
+  maxZoom?: number
 }
 
 export function HeatmapVisualization({ 
   data = [], 
   center = [51.505, -0.09],
   zoom = 13,
-  showMarkers = true,
-  debug = false
+  showPoints = false,
+  debug = false,
+  radius = 25, 
+  blur = 15,
+  maxZoom = 18
 }: HeatmapVisualizationProps) {
-
-    console.log("data is  : ",data);
-
-
   // Initialize Leaflet map
-  const [mapReady, setMapReady] = useState(false)
-  const [processedData, setProcessedData] = useState([])
+  const [mapReady, setMapReady] = useState(false);
+  const [processedData, setProcessedData] = useState([]);
   
   // Process and normalize the data
   useEffect(() => {
     // Check if data is nested within a response object
-    let dataToProcess = data
+    let dataToProcess = data;
     
     // Some APIs wrap the data in a 'data' property
-    if (typeof data === 'object' && !Array.isArray(data) && data?.data && Array.isArray(data.data)) {
-      dataToProcess = data.data
+    if (data?.data && Array.isArray(data.data)) {
+      dataToProcess = data.data;
     }
     
     // Normalize the data to a standard format
     const normalized = dataToProcess.map(item => {
       // Extract coordinates from possible locations in the structure
       const latitude = item.latitude || item.location?.latitude || 
-                      (item.detection?.location?.latitude) || 
-                      (item.location && parseFloat(item.location.latitude))
+                     (item.detection?.location?.latitude) || 
+                     (item.location && parseFloat(item.location.latitude));
       
       const longitude = item.longitude || item.location?.longitude || 
-                       (item.detection?.location?.longitude) || 
-                       (item.location && parseFloat(item.location.longitude))
+                      (item.detection?.location?.longitude) || 
+                      (item.location && parseFloat(item.location.longitude));
       
       // If we can't find valid coordinates, skip this item
       if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
-        return null
+        return null;
+      }
+      
+      // Calculate severity - handle different possible structures
+      let severity = 1;
+      
+      // Check for severity in different possible locations in structure
+      if (item.severity) {
+        severity = item.severity;
+      } else if (item.detection?.highestSeverity) {
+        const severityStr = item.detection.highestSeverity.toString().toUpperCase();
+        if (severityStr === "HIGH") severity = 8;
+        else if (severityStr === "MEDIUM") severity = 5;
+        else if (severityStr === "LOW") severity = 2;
+      } else if (item.detection?.totalDetections) {
+        severity = Math.min(10, Math.max(1, item.detection.totalDetections));
+      } else if (item.totalDetections) {
+        severity = Math.min(10, Math.max(1, item.totalDetections));
       }
       
       return {
@@ -197,75 +166,67 @@ export function HeatmapVisualization({
         normalized: {
           latitude: parseFloat(latitude),
           longitude: parseFloat(longitude),
-          // Try to extract severity from different possible locations
-          severity: item.severity || 
-                   (item.detection?.highestSeverity ? 
-                     (item.detection.highestSeverity.toString().toUpperCase() === "HIGH" ? 8 :
-                      item.detection.highestSeverity.toString().toUpperCase() === "MEDIUM" ? 5 : 
-                      item.detection.highestSeverity.toString().toUpperCase() === "LOW" ? 2 : 1) : 
-                     (item.detection?.totalDetections || item.totalDetections || 1))
+          severity: severity,
+          // Keep original data for tooltip display
+          tooltip: {
+            id: item.id || "Unknown",
+            username: item.metadata?.username || item.username || "Unknown",
+            totalDetections: item.detection?.totalDetections || item.totalDetections || 0,
+            highestSeverity: item.detection?.highestSeverity || item.highestSeverity || "Unknown",
+            createdAt: (item.metadata?.createdAt || item.createdAt) ? 
+              new Date(item.metadata?.createdAt || item.createdAt).toLocaleDateString() : "Unknown"
+          }
         }
-      }
-    }).filter(Boolean) // Remove null entries
+      };
+    }).filter(Boolean); // Remove null entries
     
-    setProcessedData(normalized)
+    setProcessedData(normalized);
     
     if (debug) {
-      console.log("Raw data:", data)
-      console.log("Processed data:", normalized)
-      console.log("Found valid points:", normalized.length)
+      console.log("Raw data:", data);
+      console.log("Processed data:", normalized);
+      console.log("Found valid points:", normalized.length);
     }
-  }, [data, debug])
+  }, [data, debug]);
   
   useEffect(() => {
     // Ensure Leaflet is only used on the client side
-    setMapReady(true)
+    setMapReady(true);
     
     try {
       // Fix the Leaflet icon issue in Next.js
-      delete L.Icon.Default.prototype._getIconUrl
+      delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      })
+      });
     } catch (e) {
-      console.error("Error initializing Leaflet:", e)
+      console.error("Error initializing Leaflet:", e);
     }
-  }, [])
+  }, []);
   
   // Calculate dynamic center point if data exists
   const mapCenter = (() => {
     if (processedData && processedData.length > 0) {
       // Use average lat/lng from valid data
       const latSum = processedData.reduce((sum, point) => 
-        sum + point.normalized.latitude, 0)
+        sum + point.normalized.latitude, 0);
       const lngSum = processedData.reduce((sum, point) => 
-        sum + point.normalized.longitude, 0)
+        sum + point.normalized.longitude, 0);
       
-      return [latSum / processedData.length, lngSum / processedData.length] as [number, number]
+      return [latSum / processedData.length, lngSum / processedData.length] as [number, number];
     }
-    return center
-  })()
+    return center;
+  })();
   
-  const getSeverityColor = (severityValue) => {
-    // Handle different formats of severity
-    if (!severityValue) return "#808080"
-    
-    if (typeof severityValue === 'string') {
-      const severity = severityValue.toString().toUpperCase();
-      if (severity === "HIGH") return "#FF424F";
-      if (severity === "MEDIUM") return "#FF9E0D";
-      if (severity === "LOW") return "#FFCD1C";
-      return "#808080";
-    } else if (typeof severityValue === 'number') {
-      if (severityValue >= 7) return "#FF424F";
-      if (severityValue >= 4) return "#FF9E0D";
-      return "#FFCD1C";
-    }
-    
-    return "#808080";
-  }
+  // Format data for leaflet.heat
+  // Format: [[lat, lng, intensity], [lat, lng, intensity], ...]
+  const heatmapPoints = processedData.map(point => [
+    point.normalized.latitude,
+    point.normalized.longitude,
+    point.normalized.severity // The weight/intensity value
+  ]);
   
   // Show loading state while waiting for client-side rendering
   if (!mapReady) {
@@ -273,7 +234,7 @@ export function HeatmapVisualization({
       <div className="w-full h-full flex items-center justify-center bg-gray-900">
         <p className="text-gray-500">Loading map visualization...</p>
       </div>
-    )
+    );
   }
   
   // Show debug info if enabled
@@ -292,7 +253,7 @@ export function HeatmapVisualization({
           {JSON.stringify(Array.isArray(data) ? data.slice(0, 1) : data?.data?.slice(0, 1) || data, null, 2)}
         </pre>
       </div>
-    )
+    );
   }
   
   // Show a message if no valid data points were found
@@ -302,7 +263,7 @@ export function HeatmapVisualization({
         <p>No valid location data available for visualization</p>
         <p className="text-sm mt-2">Enable debug mode to see more information</p>
       </div>
-    )
+    );
   }
   
   return (
@@ -320,29 +281,34 @@ export function HeatmapVisualization({
         
         <MapResizer />
         
-        {/* Canvas-based heatmap layer */}
-        <CanvasHeatmapLayer data={processedData} />
+        {/* Heatmap layer using leaflet.heat */}
+        <HeatLayer 
+          points={heatmapPoints}
+          radius={radius}
+          blur={blur}
+          maxZoom={maxZoom}
+        />
         
-        {/* Optional circle markers */}
-        {showMarkers && processedData.map((point, index) => (
+        {/* Optionally show point markers */}
+        {showPoints && processedData.map((point, index) => (
           <Circle
-            key={point.id || `point-${index}`}
+            key={`point-${index}`}
             center={[point.normalized.latitude, point.normalized.longitude]}
-            radius={point.location?.accuracy || point.accuracyMeters || 10}
+            radius={10}
             pathOptions={{
-              color: getSeverityColor(point.normalized.severity),
-              fillColor: getSeverityColor(point.normalized.severity),
-              fillOpacity: 0.3
+              color: '#ffffff',
+              weight: 1,
+              fillOpacity: 0.3,
+              fillColor: '#ffffff',
             }}
           >
             <Tooltip>
               <div className="text-sm">
-                <strong>ID:</strong> {point.id || `Point ${index + 1}`}<br />
-                <strong>User:</strong> {point.metadata?.username || point.username || "Unknown"}<br />
-                <strong>Detections:</strong> {point.detection?.totalDetections || point.totalDetections || 0}<br />
-                <strong>Severity:</strong> {point.detection?.highestSeverity || point.highestSeverity || "Unknown"}<br />
-                <strong>Date:</strong> {(point.metadata?.createdAt || point.createdAt) ? 
-                  new Date(point.metadata?.createdAt || point.createdAt).toLocaleDateString() : "Unknown"}
+                <strong>ID:</strong> {point.normalized.tooltip.id}<br />
+                <strong>User:</strong> {point.normalized.tooltip.username}<br />
+                <strong>Detections:</strong> {point.normalized.tooltip.totalDetections}<br />
+                <strong>Severity:</strong> {point.normalized.tooltip.highestSeverity}<br />
+                <strong>Date:</strong> {point.normalized.tooltip.createdAt}
               </div>
             </Tooltip>
           </Circle>
@@ -351,5 +317,5 @@ export function HeatmapVisualization({
         <Legend />
       </MapContainer>
     </div>
-  )
+  );
 }
