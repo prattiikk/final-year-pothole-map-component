@@ -17,8 +17,8 @@ export function LandingPage({ onViewMapClick }: LandingPageProps) {
     <div className="min-h-screen flex flex-col">
       <Header onViewMapClick={onViewMapClick} />
       <main className="flex-grow">
-        <HeroSection onViewMapClick={onViewMapClick} />
-        <MapPreview onViewMapClick={onViewMapClick} />
+        <HeroSection  />
+        <MapPreview />
         <FeatureShowcase />
         <DataVisualizationPreview />
         <CommunitySection />

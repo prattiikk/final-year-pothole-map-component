@@ -2,15 +2,169 @@
 
 import type React from "react"
 
-import { motion } from "framer-motion"
+import { motion, useInView } from "framer-motion"
 import { MapPin, Layers, Filter, Search, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { useRef, useEffect } from "react"
 
-interface MapPreviewProps {
-  onViewMapClick?: () => void
-}
+export function MapPreview() {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const isInView = useInView(mapRef, { once: true })
 
-export function MapPreview({ onViewMapClick }: MapPreviewProps) {
+  useEffect(() => {
+    if (!mapRef.current || !isInView) return
+
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const container = mapRef.current
+    canvas.width = container.offsetWidth
+    canvas.height = container.offsetHeight
+    container.appendChild(canvas)
+
+    // Draw map background
+    ctx.fillStyle = "#111"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Draw grid lines
+    ctx.strokeStyle = "#333"
+    ctx.lineWidth = 1
+
+    // Vertical grid lines
+    for (let x = 0; x <= canvas.width; x += 50) {
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, canvas.height)
+      ctx.stroke()
+    }
+
+    // Horizontal grid lines
+    for (let y = 0; y <= canvas.height; y += 50) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(canvas.width, y)
+      ctx.stroke()
+    }
+
+    // Draw roads
+    ctx.strokeStyle = "#444"
+    ctx.lineWidth = 3
+
+    // Main road
+    ctx.beginPath()
+    ctx.moveTo(canvas.width * 0.1, canvas.height * 0.5)
+    ctx.lineTo(canvas.width * 0.9, canvas.height * 0.5)
+    ctx.stroke()
+
+    // Cross roads
+    ctx.beginPath()
+    ctx.moveTo(canvas.width * 0.3, canvas.height * 0.2)
+    ctx.lineTo(canvas.width * 0.3, canvas.height * 0.8)
+    ctx.stroke()
+
+    ctx.beginPath()
+    ctx.moveTo(canvas.width * 0.7, canvas.height * 0.2)
+    ctx.lineTo(canvas.width * 0.7, canvas.height * 0.8)
+    ctx.stroke()
+
+    // Draw potholes
+    const potholes = [
+      { x: canvas.width * 0.3, y: canvas.height * 0.5, severity: "high" },
+      { x: canvas.width * 0.5, y: canvas.height * 0.5, severity: "medium" },
+      { x: canvas.width * 0.7, y: canvas.height * 0.5, severity: "low" },
+      { x: canvas.width * 0.2, y: canvas.height * 0.4, severity: "medium" },
+      { x: canvas.width * 0.8, y: canvas.height * 0.6, severity: "high" },
+    ]
+
+    potholes.forEach((pothole) => {
+      let color
+      let radius
+
+      switch (pothole.severity) {
+        case "high":
+          color = "#FF424F"
+          radius = 8
+          break
+        case "medium":
+          color = "#FF9E0D"
+          radius = 6
+          break
+        default:
+          color = "#FFCD1C"
+          radius = 5
+      }
+
+      // Draw pothole
+      ctx.beginPath()
+      ctx.arc(pothole.x, pothole.y, radius, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+
+      // Draw glow effect
+      const gradient = ctx.createRadialGradient(pothole.x, pothole.y, radius * 0.5, pothole.x, pothole.y, radius * 2)
+      gradient.addColorStop(0, color + "80")
+      gradient.addColorStop(1, "transparent")
+
+      ctx.beginPath()
+      ctx.arc(pothole.x, pothole.y, radius * 2, 0, Math.PI * 2)
+      ctx.fillStyle = gradient
+      ctx.fill()
+    })
+
+    // Draw current location
+    const centerX = canvas.width / 2
+    const centerY = canvas.height / 2
+
+    // Outer pulse
+    function drawPulse() {
+      let pulseRadius = 10
+      let opacity = 0.8
+
+      function animate() {
+        if (!ctx) return
+        ctx.clearRect(centerX - 30, centerY - 30, 60, 60)
+
+        // Redraw background and grid in the cleared area
+        ctx.fillStyle = "#111"
+        ctx.fillRect(centerX - 30, centerY - 30, 60, 60)
+
+        // Draw pulse
+        ctx.beginPath()
+        ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(39, 110, 241, ${opacity})`
+        ctx.fill()
+
+        // Draw center dot
+        ctx.beginPath()
+        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2)
+        ctx.fillStyle = "#276EF1"
+        ctx.fill()
+
+        pulseRadius += 0.3
+        opacity -= 0.01
+
+        if (pulseRadius > 20) {
+          pulseRadius = 10
+          opacity = 0.8
+        }
+
+        requestAnimationFrame(animate)
+      }
+
+      animate()
+    }
+
+    drawPulse()
+
+    return () => {
+      if (container.contains(canvas)) {
+        container.removeChild(canvas)
+      }
+    }
+  }, [isInView])
+
   return (
     <section id="map-preview" className="py-24 md:py-32 px-6 relative overflow-hidden bg-muted/30">
       <div className="max-w-7xl mx-auto">
@@ -39,49 +193,8 @@ export function MapPreview({ onViewMapClick }: MapPreviewProps) {
             className="relative"
           >
             <div className="bg-background rounded-xl overflow-hidden shadow-2xl border border-border/50">
-              <div className="h-72 md:h-96 relative bg-black overflow-hidden">
-                {/* Map placeholder with dots representing potholes */}
-                <div className="absolute inset-0 opacity-60">
-                  <svg width="100%" height="100%" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="0" y="0" width="800" height="600" fill="#111" />
-                    <circle cx="300" cy="200" r="8" fill="#FF424F" opacity="0.8" />
-                    <circle cx="450" cy="320" r="6" fill="#FF9E0D" opacity="0.8" />
-                    <circle cx="200" cy="400" r="5" fill="#FFCD1C" opacity="0.8" />
-                    <circle cx="600" cy="250" r="7" fill="#FF424F" opacity="0.8" />
-                    <circle cx="150" cy="180" r="5" fill="#FF9E0D" opacity="0.8" />
-                    <path d="M100,100 L700,500" stroke="#333" strokeWidth="2" />
-                    <path d="M200,150 L650,300" stroke="#333" strokeWidth="2" />
-                    <path d="M300,500 L500,100" stroke="#333" strokeWidth="2" />
-                  </svg>
-                </div>
-
-                {/* Current location marker */}
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <motion.div
-                    className="w-4 h-4 rounded-full bg-blue-500"
-                    animate={{
-                      scale: [1, 1.5, 1],
-                      opacity: [0.7, 1, 0.7],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Number.POSITIVE_INFINITY,
-                      repeatType: "loop",
-                    }}
-                  />
-                  <motion.div
-                    className="w-10 h-10 rounded-full border-2 border-blue-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
-                    animate={{
-                      scale: [1, 1.5, 1],
-                      opacity: [0.3, 0, 0.3],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Number.POSITIVE_INFINITY,
-                      repeatType: "loop",
-                    }}
-                  />
-                </div>
+              <div ref={mapRef} className="h-72 md:h-96 relative bg-black overflow-hidden">
+                {/* Map will be rendered here by the canvas */}
               </div>
 
               {/* Controls */}
@@ -134,13 +247,11 @@ export function MapPreview({ onViewMapClick }: MapPreviewProps) {
               title="Data Visualization"
               description="Analyze pothole data with heat maps, bar charts, and pie charts for comprehensive insights."
             />
-            <Button
-              onClick={onViewMapClick}
-              className="w-full md:w-auto mt-4 flex items-center justify-center"
-              size="lg"
-            >
-              Explore Full Map <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+            <Link href="/map">
+              <Button className="w-full md:w-auto mt-4 flex items-center justify-center" size="lg">
+                Explore Full Map <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
           </motion.div>
         </div>
       </div>

@@ -2,13 +2,10 @@
 
 import { useRef, useEffect } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { ArrowDown } from "lucide-react"
+import { ArrowDown, Camera, MapPin, BarChart, Shield } from "lucide-react"
+import Link from "next/link"
 
-interface HeroSectionProps {
-  onViewMapClick?: () => void
-}
-
-export function HeroSection({ onViewMapClick }: HeroSectionProps) {
+export function HeroSection() {
   const containerRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -23,13 +20,13 @@ export function HeroSection({ onViewMapClick }: HeroSectionProps) {
     <motion.section
       ref={containerRef}
       style={{ opacity, scale, y }}
-      className="relative h-screen flex items-center justify-center overflow-hidden"
+      className="relative min-h-screen flex items-center justify-center overflow-hidden"
     >
       <div className="absolute inset-0 z-0">
         <MapVisualization />
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
+      <div className="relative z-10 max-w-5xl mx-auto px-6 py-20 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -48,36 +45,125 @@ export function HeroSection({ onViewMapClick }: HeroSectionProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4"
+          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
         >
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-medium"
-            onClick={onViewMapClick}
-          >
-            View Map
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="px-8 py-3 rounded-full bg-background border border-border text-foreground font-medium"
-          >
-            Learn More
-          </motion.button>
+          <Link href="/map">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-medium flex items-center gap-2"
+            >
+              <MapPin className="h-4 w-4" />
+              View Map
+            </motion.button>
+          </Link>
+          <Link href="/dashboard">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-8 py-3 rounded-full bg-background border border-border text-foreground font-medium flex items-center gap-2"
+            >
+              <BarChart className="h-4 w-4" />
+              View Dashboard
+            </motion.button>
+          </Link>
+          <Link href="https://report.roadsense.com" target="_blank" rel="noopener noreferrer">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-8 py-3 rounded-full bg-green-600 text-white font-medium flex items-center gap-2"
+            >
+              <Camera className="h-4 w-4" />
+              Report Pothole
+            </motion.button>
+          </Link>
+        </motion.div>
+
+        {/* User types section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.6 }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8"
+        >
+          {/* For Drivers */}
+          <div className="bg-background/30 backdrop-blur-sm p-6 rounded-xl border border-border/50">
+            <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 mx-auto">
+              <MapPin className="h-6 w-6 text-blue-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-3">For Drivers & Commuters</h3>
+            <ul className="text-left space-y-2 mb-4">
+              <li className="flex items-start gap-2">
+                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Plan smoother journeys by avoiding pothole-heavy routes</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Get real-time alerts about road hazards on your route</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Contribute to safer roads by reporting potholes you encounter</span>
+              </li>
+            </ul>
+            <Link href="/map">
+              <button className="w-full py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                Explore Map
+              </button>
+            </Link>
+          </div>
+
+          {/* For Agencies */}
+          <div className="bg-background/30 backdrop-blur-sm p-6 rounded-xl border border-border/50">
+            <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center mb-4 mx-auto">
+              <Shield className="h-6 w-6 text-green-500" />
+            </div>
+            <h3 className="text-xl font-bold mb-3">For Agencies & Authorities</h3>
+            <ul className="text-left space-y-2 mb-4">
+              <li className="flex items-start gap-2">
+                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Access comprehensive analytics on road conditions</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Prioritize repairs based on severity and traffic impact</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
+                  <ArrowDown className="h-3 w-3" />
+                </span>
+                <span>Track repair progress and monitor recurring issues</span>
+              </li>
+            </ul>
+            <Link href="/dashboard">
+              <button className="w-full py-2 px-4 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
+                View Dashboard
+              </button>
+            </Link>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5, duration: 1 }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10"
+        >
+          <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}>
+            <ArrowDown className="h-6 w-6 text-foreground/60" />
+          </motion.div>
         </motion.div>
       </div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.5, duration: 1 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10"
-      >
-        <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}>
-          <ArrowDown className="h-6 w-6 text-foreground/60" />
-        </motion.div>
-      </motion.div>
     </motion.section>
   )
 }
