@@ -3,12 +3,14 @@
 import type React from "react"
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react"
-import { MapContainer, TileLayer, CircleMarker, useMapEvents, Tooltip, Marker, LayersControl } from "react-leaflet"
+import { MapContainer, TileLayer, CircleMarker, useMapEvents, Tooltip, Marker } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import type L from "leaflet"
 import { debounce } from "lodash"
-import { Navigation, Search, Filter, BarChart, X, ChevronRight, AlertTriangle } from "lucide-react"
+import { Navigation, Search, X, AlertTriangle } from "lucide-react"
 import currentLocationIcon from "./StickFigure"
+import { MapSidebar } from "./map-sidebar"
+import { HeatmapLayer } from "@/components/heatlayerfetcher"
 
 interface Pothole {
   id: string
@@ -68,7 +70,6 @@ const PotholeMap = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastFetchTime, setLastFetchTime] = useState(0)
-  const [isLegendOpen, setIsLegendOpen] = useState(true)
   const [locationName, setLocationName] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [isSearching, setIsSearching] = useState(false)
@@ -76,9 +77,10 @@ const PotholeMap = () => {
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searchRadius, setSearchRadius] = useState(5) // 5 km default radius
-  const [showDataVisualization, setShowDataVisualization] = useState(false)
   const [severityFilter, setSeverityFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+  const [showHeatmap, setShowHeatmap] = useState(false)
+  const [currentMapLayer, setCurrentMapLayer] = useState<MapLayerOption>(mapLayers[0]) // Default to first layer
 
   const mapRef = useRef<L.Map | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -150,6 +152,13 @@ const PotholeMap = () => {
       }
     }
   }, [])
+
+  // Center map on user location when it becomes available
+  useEffect(() => {
+    if (location && mapRef.current) {
+      mapRef.current.setView([location.lat, location.lng], 15, { animate: true })
+    }
+  }, [location])
 
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
@@ -388,6 +397,20 @@ const PotholeMap = () => {
     }
   }, [searchRadius, fetchPotholes])
 
+  // Handle layer change from sidebar
+  const handleLayerChange = (layer: MapLayerOption) => {
+    setCurrentMapLayer(layer)
+  }
+
+  // Prepare heatmap data
+  const heatmapData = useMemo(() => {
+    return filteredPotholes.map((pothole) => ({
+      lat: pothole.latitude,
+      lng: pothole.longitude,
+      intensity: pothole.severity / 2, // Scale intensity based on severity
+    }))
+  }, [filteredPotholes])
+
   // LocationMarker component for handling map events and displaying user location
   const LocationMarker = () => {
     const map = useMapEvents({
@@ -462,12 +485,6 @@ const PotholeMap = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     searchLocation(searchQuery)
-  }
-
-  // Toggle data visualization panel
-  const toggleDataVisualization = () => {
-    setShowDataVisualization(!showDataVisualization)
-    setSelectedPothole(null)
   }
 
   // Calculate statistics for data visualization
@@ -608,15 +625,6 @@ const PotholeMap = () => {
               )}
             </div>
 
-            {/* Toggle Data Visualization */}
-            <button
-              className={`bg-gray-800 text-white rounded-lg px-3 py-2 flex items-center ${showDataVisualization ? "bg-blue-600" : ""}`}
-              onClick={toggleDataVisualization}
-            >
-              <BarChart size={16} className="mr-1" />
-              <span className="hidden sm:inline">Analytics</span>
-            </button>
-
             {/* Current location button */}
             {location && (
               <button
@@ -643,21 +651,17 @@ const PotholeMap = () => {
         {/* Map area */}
         <div className="absolute inset-0 z-0">
           <MapContainer center={mapCenter} zoom={15} className="h-full w-full" zoomControl={false} preferCanvas={true}>
-            {/* Use LayersControl for different map styles */}
-            <LayersControl position="topright">
-              {mapLayers.map((layer) => (
-                <LayersControl.BaseLayer
-                  key={layer.name}
-                  name={layer.name}
-                  checked={layer.name === "Dark"} // Default to dark theme
-                >
-                  <TileLayer url={layer.url} attribution={layer.attribution} />
-                </LayersControl.BaseLayer>
-              ))}
-            </LayersControl>
+            {/* Use TileLayer for the current map style */}
+            <TileLayer url={currentMapLayer.url} attribution={currentMapLayer.attribution} />
+
+            {/* Heatmap layer */}
+            {showHeatmap && (
+
+              <HeatmapLayer data={potholes} />
+            )}
 
             <LocationMarker />
-            {filteredPotholes.map((pothole) => (
+            {!showHeatmap && filteredPotholes.map((pothole) => (
               <CircleMarker
                 key={pothole.id}
                 center={[pothole.latitude, pothole.longitude]}
@@ -671,7 +675,6 @@ const PotholeMap = () => {
                 eventHandlers={{
                   click: () => {
                     setSelectedPothole(pothole)
-                    setShowDataVisualization(false)
                   },
                 }}
               >
@@ -680,6 +683,20 @@ const PotholeMap = () => {
             ))}
           </MapContainer>
         </div>
+        <MapSidebar
+          potholes={potholes}
+          filteredPotholes={filteredPotholes}
+          searchRadius={searchRadius}
+          setSearchRadius={setSearchRadius}
+          severityFilter={severityFilter}
+          setSeverityFilter={setSeverityFilter}
+          dateFilter={dateFilter}
+          setDateFilter={setDateFilter}
+          onLayerChange={handleLayerChange}
+          stats={calculateStatistics()}
+          showHeatmap={showHeatmap}
+          setShowHeatmap={setShowHeatmap}
+        />
 
         {/* Error message overlay */}
         {error && (
@@ -696,142 +713,6 @@ const PotholeMap = () => {
             <span>Loading...</span>
           </div>
         )}
-
-        {/* Filter controls overlay */}
-        <div className="absolute bottom-4 left-4 z-10 bg-black bg-opacity-70 p-3 rounded-lg shadow-lg max-w-xs w-full">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold flex items-center">
-              <Filter size={16} className="mr-2" />
-              Filters
-            </h3>
-            <div className="text-sm text-gray-300">Radius: {searchRadius} km</div>
-          </div>
-
-          {/* Search radius slider */}
-          <div className="mb-4">
-            <label htmlFor="radius-slider" className="text-xs text-gray-400 block mb-1">
-              Search Radius
-            </label>
-            <input
-              id="radius-slider"
-              type="range"
-              min="1"
-              max="20"
-              step="1"
-              value={searchRadius}
-              onChange={(e) => setSearchRadius(Number.parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>1km</span>
-              <span>10km</span>
-              <span>20km</span>
-            </div>
-          </div>
-
-          {/* Severity filter */}
-          <div className="mb-3">
-            <label className="text-xs text-gray-400 block mb-1">Severity Level</label>
-            <div className="grid grid-cols-4 gap-1">
-              <button
-                className={`text-xs py-1 px-2 rounded ${severityFilter === "all" ? "bg-blue-600" : "bg-gray-700"}`}
-                onClick={() => setSeverityFilter("all")}
-              >
-                All
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${severityFilter === "high" ? "bg-red-600" : "bg-gray-700"}`}
-                onClick={() => setSeverityFilter("high")}
-              >
-                High
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${severityFilter === "medium" ? "bg-orange-500" : "bg-gray-700"}`}
-                onClick={() => setSeverityFilter("medium")}
-              >
-                Medium
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${
-                  severityFilter === "low" ? "bg-yellow-500 text-black" : "bg-gray-700"
-                }`}
-                onClick={() => setSeverityFilter("low")}
-              >
-                Low
-              </button>
-            </div>
-          </div>
-
-          {/* Date filter */}
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Reported Date</label>
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                className={`text-xs py-1 px-2 rounded ${dateFilter === "all" ? "bg-blue-600" : "bg-gray-700"}`}
-                onClick={() => setDateFilter("all")}
-              >
-                All
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${dateFilter === "today" ? "bg-blue-600" : "bg-gray-700"}`}
-                onClick={() => setDateFilter("today")}
-              >
-                Today
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${dateFilter === "week" ? "bg-blue-600" : "bg-gray-700"}`}
-                onClick={() => setDateFilter("week")}
-              >
-                This Week
-              </button>
-              <button
-                className={`text-xs py-1 px-2 rounded ${dateFilter === "month" ? "bg-blue-600" : "bg-gray-700"}`}
-                onClick={() => setDateFilter("month")}
-              >
-                This Month
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-4 right-4 z-10">
-          <div className="bg-black bg-opacity-70 rounded-lg shadow-lg overflow-hidden">
-            <div
-              className="px-3 py-2 cursor-pointer flex items-center justify-between"
-              onClick={() => setIsLegendOpen(!isLegendOpen)}
-            >
-              <span className="font-semibold">Legend</span>
-              <ChevronRight
-                size={16}
-                className={`transition-transform duration-200 ${isLegendOpen ? "transform rotate-90" : ""}`}
-              />
-            </div>
-
-            {isLegendOpen && (
-              <div className="px-3 pb-3">
-                <div className="flex items-center my-1">
-                  <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getSeverityColor(8) }}></div>
-                  <span className="text-sm">High Severity</span>
-                </div>
-                <div className="flex items-center my-1">
-                  <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getSeverityColor(5) }}></div>
-                  <span className="text-sm">Medium Severity</span>
-                </div>
-                <div className="flex items-center my-1">
-                  <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: getSeverityColor(2) }}></div>
-                  <span className="text-sm">Low Severity</span>
-                </div>
-                <div className="flex items-center my-1">
-                  <div className="w-4 h-4 flex items-center justify-center mr-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                  <span className="text-sm">Your Location</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* Selected pothole detail panel */}
         {selectedPothole && (
@@ -891,139 +772,6 @@ const PotholeMap = () => {
                 <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg w-full">
                   Report Fixed
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Data visualization panel */}
-        {showDataVisualization && (
-          <div className="absolute right-0 top-0 bottom-0 w-full md:w-96 bg-black bg-opacity-90 p-4 z-20 overflow-y-auto border-l border-gray-800">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Pothole Analytics</h2>
-              <button
-                onClick={() => setShowDataVisualization(false)}
-                className="bg-gray-800 hover:bg-gray-700 p-2 rounded-full"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Summary stats */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-800 p-3 rounded-lg">
-                  <h3 className="text-gray-400 text-xs mb-1">Total Potholes</h3>
-                  <p className="text-2xl font-bold">{stats.totalCount}</p>
-                </div>
-                <div className="bg-gray-800 p-3 rounded-lg">
-                  <h3 className="text-gray-400 text-xs mb-1">Avg. Severity</h3>
-                  <p className="text-2xl font-bold">{stats.averageSeverity}</p>
-                </div>
-              </div>
-
-              {/* Severity distribution */}
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <h3 className="text-sm font-semibold mb-3">Severity Distribution</h3>
-                <div className="relative pt-1">
-                  <div className="flex h-4 mb-4 overflow-hidden text-xs rounded-lg">
-                    <div
-                      style={{ width: `${(stats.highCount / stats.totalCount) * 100}%` }}
-                      className="bg-red-600 flex flex-col text-center whitespace-nowrap justify-center"
-                    ></div>
-                    <div
-                      style={{ width: `${(stats.mediumCount / stats.totalCount) * 100}%` }}
-                      className="bg-orange-500 flex flex-col text-center whitespace-nowrap justify-center"
-                    ></div>
-                    <div
-                      style={{ width: `${(stats.lowCount / stats.totalCount) * 100}%` }}
-                      className="bg-yellow-500 flex flex-col text-center whitespace-nowrap justify-center"
-                    ></div>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 bg-red-600 mr-1 rounded-sm"></div>
-                      <span>High: {stats.highCount}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 bg-orange-500 mr-1 rounded-sm"></div>
-                      <span>Medium: {stats.mediumCount}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 bg-yellow-500 mr-1 rounded-sm"></div>
-                      <span>Low: {stats.lowCount}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Date distribution */}
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <h3 className="text-sm font-semibold mb-3">Reports Timeline</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <div className="w-24 text-xs">Today</div>
-                    <div className="flex-1 h-4 bg-gray-700 rounded-lg overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${(stats.byDate.today / stats.totalCount) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="w-8 text-right text-xs ml-2">{stats.byDate.today}</div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-24 text-xs">Yesterday</div>
-                    <div className="flex-1 h-4 bg-gray-700 rounded-lg overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${(stats.byDate.yesterday / stats.totalCount) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="w-8 text-right text-xs ml-2">{stats.byDate.yesterday}</div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-24 text-xs">Last Week</div>
-                    <div className="flex-1 h-4 bg-gray-700 rounded-lg overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${(stats.byDate.lastWeek / stats.totalCount) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="w-8 text-right text-xs ml-2">{stats.byDate.lastWeek}</div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-24 text-xs">Last Month</div>
-                    <div className="flex-1 h-4 bg-gray-700 rounded-lg overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${(stats.byDate.lastMonth / stats.totalCount) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="w-8 text-right text-xs ml-2">{stats.byDate.lastMonth}</div>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="w-24 text-xs">Older</div>
-                    <div className="flex-1 h-4 bg-gray-700 rounded-lg overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600"
-                        style={{ width: `${(stats.byDate.older / stats.totalCount) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="w-8 text-right text-xs ml-2">{stats.byDate.older}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recommendation section */}
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <h3 className="text-sm font-semibold mb-3">Analysis</h3>
-                <p className="text-sm text-gray-300">
-                  Based on the data, this area has
-                  {stats.highCount > stats.totalCount / 3 ? " a high" : " a moderate"} number of severe potholes.
-                  {stats.byDate.today + stats.byDate.yesterday > stats.totalCount / 4
-                    ? " There has been a recent increase in pothole reports."
-                    : " Reports have been consistent over time."}
-                </p>
               </div>
             </div>
           </div>

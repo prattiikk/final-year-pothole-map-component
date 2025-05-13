@@ -77,7 +77,7 @@ const HeatLayer = ({ points, radius = 25, blur = 15, maxZoom = 18, max = 10, gra
 // Legend component
 const Legend = () => {
     return (
-        <div className="absolute bottom-6 left-4 z-20 bg-black bg-opacity-70 p-3 rounded-md">
+        <div className="absolute bottom-6 left-4 z-40 bg-black bg-opacity-70 p-3 rounded-md ">
             <div className="text-white text-xs mb-2 font-semibold">Detection Intensity</div>
             <div className="flex h-6 w-48">
                 <div className="flex-1 h-full bg-gradient-to-r from-blue-500 via-cyan-400 via-green-400 via-yellow-300 to-red-500" />
@@ -288,32 +288,6 @@ export function HeatmapVisualization({
                     blur={blur}
                     maxZoom={maxZoom}
                 />
-
-                {/* Optionally show point markers */}
-                {showPoints && processedData.map((point, index) => (
-                    <Circle
-                        key={`point-${index}`}
-                        center={[point.normalized.latitude, point.normalized.longitude]}
-                        radius={10}
-                        pathOptions={{
-                            color: '#ffffff',
-                            weight: 1,
-                            fillOpacity: 0.3,
-                            fillColor: '#ffffff',
-                        }}
-                    >
-                        <Tooltip>
-                            <div className="text-sm">
-                                <strong>ID:</strong> {point.normalized.tooltip.id}<br />
-                                <strong>User:</strong> {point.normalized.tooltip.username}<br />
-                                <strong>Detections:</strong> {point.normalized.tooltip.totalDetections}<br />
-                                <strong>Severity:</strong> {point.normalized.tooltip.highestSeverity}<br />
-                                <strong>Date:</strong> {point.normalized.tooltip.createdAt}
-                            </div>
-                        </Tooltip>
-                    </Circle>
-                ))}
-
                 <Legend />
             </MapContainer>
         </div>

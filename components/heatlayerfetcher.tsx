@@ -1,0 +1,242 @@
+"use client"
+
+import { useRef, useEffect, useState } from "react"
+import { MapContainer, TileLayer, Tooltip, useMap, Circle } from "react-leaflet"
+import "leaflet/dist/leaflet.css"
+import L from "leaflet"
+
+// Dynamically import leaflet.heat on client side only
+const loadHeatLayer = async () => {
+  // Dynamic import for client-side only code
+  if (typeof window !== 'undefined') {
+    await import('leaflet.heat');
+    return true;
+  }
+  return false;
+};
+
+// Force the Leaflet map to properly render in Next.js
+const MapResizer = () => {
+  const map = useMap();
+  useEffect(() => {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 0);
+  }, [map]);
+  return null;
+};
+
+// Custom React wrapper for Leaflet.heat
+const HeatLayer = ({ points, radius = 25, blur = 15, maxZoom = 18, max = 10, gradient = null }) => {
+  const map = useMap();
+  const layerRef = useRef(null);
+  const [isHeatLayerLoaded, setIsHeatLayerLoaded] = useState(false);
+
+  // Load the heat library
+  useEffect(() => {
+    loadHeatLayer().then(result => {
+      setIsHeatLayerLoaded(result);
+    });
+  }, []);
+
+  // Add the heat layer once library and points are available
+  useEffect(() => {
+    if (!isHeatLayerLoaded || !points || points.length === 0) return;
+
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current);
+    }
+
+    const options = {
+      radius,
+      blur,
+      maxZoom,
+      max,
+      gradient: gradient || {
+        0.1: 'blue',
+        0.3: 'cyan',
+        0.5: 'lime',
+        0.7: 'yellow',
+        0.9: 'red'
+      }
+    };
+
+    // Create and add the heat layer
+    layerRef.current = L.heatLayer(points, options).addTo(map);
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+      }
+    };
+  }, [map, points, radius, blur, maxZoom, max, gradient, isHeatLayerLoaded]);
+
+  return null;
+};
+
+
+interface HeatmapVisualizationProps {
+  data: any[] // Using any to flexibly handle different data structures
+  center?: [number, number]
+  zoom?: number
+  showPoints?: boolean
+  debug?: boolean
+  // Heatmap specific options
+  radius?: number
+  blur?: number
+  maxZoom?: number
+}
+
+export function HeatmapVisualization({
+  data = [],
+  center = [51.505, -0.09],
+  zoom = 13,
+  debug = false,
+  radius = 25,
+  blur = 15,
+  maxZoom = 18
+}: HeatmapVisualizationProps) {
+  // Initialize Leaflet map
+  const [mapReady, setMapReady] = useState(false);
+  const [processedData, setProcessedData] = useState([]);
+
+  // Process and normalize the data
+  useEffect(() => {
+    // Check if data is nested within a response object
+    let dataToProcess = data;
+
+    // Some APIs wrap the data in a 'data' property
+    if (data?.data && Array.isArray(data.data)) {
+      dataToProcess = data.data;
+    }
+
+    // Normalize the data to a standard format
+    const normalized = dataToProcess.map(item => {
+      // Extract coordinates from possible locations in the structure
+      const latitude = item.latitude || item.location?.latitude ||
+        (item.detection?.location?.latitude) ||
+        (item.location && parseFloat(item.location.latitude));
+
+      const longitude = item.longitude || item.location?.longitude ||
+        (item.detection?.location?.longitude) ||
+        (item.location && parseFloat(item.location.longitude));
+
+      // If we can't find valid coordinates, skip this item
+      if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+        return null;
+      }
+
+      // Calculate severity - handle different possible structures
+      let severity = 1;
+
+      // Check for severity in different possible locations in structure
+      if (item.severity) {
+        severity = item.severity;
+      } else if (item.detection?.highestSeverity) {
+        const severityStr = item.detection.highestSeverity.toString().toUpperCase();
+        if (severityStr === "HIGH") severity = 8;
+        else if (severityStr === "MEDIUM") severity = 5;
+        else if (severityStr === "LOW") severity = 2;
+      } else if (item.detection?.totalDetections) {
+        severity = Math.min(10, Math.max(1, item.detection.totalDetections));
+      } else if (item.totalDetections) {
+        severity = Math.min(10, Math.max(1, item.totalDetections));
+      }
+
+      return {
+        ...item,
+        // Ensure a standard format with these key properties
+        normalized: {
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          severity: severity,
+          // Keep original data for tooltip display
+          tooltip: {
+            id: item.id || "Unknown",
+            username: item.metadata?.username || item.username || "Unknown",
+            totalDetections: item.detection?.totalDetections || item.totalDetections || 0,
+            highestSeverity: item.detection?.highestSeverity || item.highestSeverity || "Unknown",
+            createdAt: (item.metadata?.createdAt || item.createdAt) ?
+              new Date(item.metadata?.createdAt || item.createdAt).toLocaleDateString() : "Unknown"
+          }
+        }
+      };
+    }).filter(Boolean); // Remove null entries
+
+    setProcessedData(normalized);
+
+    if (debug) {
+      console.log("Raw data:", data);
+      console.log("Processed data:", normalized);
+      console.log("Found valid points:", normalized.length);
+    }
+  }, [data, debug]);
+
+  useEffect(() => {
+    // Ensure Leaflet is only used on the client side
+    setMapReady(true);
+
+    try {
+      // Fix the Leaflet icon issue in Next.js
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      });
+    } catch (e) {
+      console.error("Error initializing Leaflet:", e);
+    }
+  }, []);
+
+  // Calculate dynamic center point if data exists
+  const mapCenter = (() => {
+    if (processedData && processedData.length > 0) {
+      // Use average lat/lng from valid data
+      const latSum = processedData.reduce((sum, point) =>
+        sum + point.normalized.latitude, 0);
+      const lngSum = processedData.reduce((sum, point) =>
+        sum + point.normalized.longitude, 0);
+
+      return [latSum / processedData.length, lngSum / processedData.length] as [number, number];
+    }
+    return center;
+  })();
+
+  // Format data for leaflet.heat
+  // Format: [[lat, lng, intensity], [lat, lng, intensity], ...]
+  const heatmapPoints = processedData.map(point => [
+    point.normalized.latitude,
+    point.normalized.longitude,
+    point.normalized.severity // The weight/intensity value
+  ]);
+
+  // Show loading state while waiting for client-side rendering
+  if (!mapReady) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-900">
+        <p className="text-gray-500">Loading map visualization...</p>
+      </div>
+    );
+  }
+
+
+  // Show a message if no valid data points were found
+  if (processedData.length === 0) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 text-gray-400">
+        <p>No valid location data available for visualization</p>
+        <p className="text-sm mt-2">Enable debug mode to see more information</p>
+      </div>
+    );
+  }
+
+  return (
+    <HeatLayer
+      points={heatmapPoints}
+      radius={radius}
+      blur={blur}
+      maxZoom={maxZoom}
+    />
+  );
+}
