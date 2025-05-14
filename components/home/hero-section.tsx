@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { ArrowDown, Camera, MapPin, BarChart, Shield } from "lucide-react"
+import { ArrowDown, MapPin, BarChart } from "lucide-react"
 import Link from "next/link"
 
 export function HeroSection() {
@@ -20,19 +20,19 @@ export function HeroSection() {
     <motion.section
       ref={containerRef}
       style={{ opacity, scale, y }}
-      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      className="relative min-h-[80vh] flex items-center justify-center overflow-hidden"
     >
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 opacity-30">
         <MapVisualization />
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-20 text-center">
+      <div className="relative z-10 max-w-5xl mx-auto px-6 py-16 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tighter mb-6">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tighter mb-6">
             Mapping the <span className="text-primary">unseen</span> road
           </h1>
           <p className="text-lg md:text-xl text-foreground/80 max-w-2xl mx-auto mb-8">
@@ -45,7 +45,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
+          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8"
         >
           <Link href="/map">
             <motion.button
@@ -67,90 +67,6 @@ export function HeroSection() {
               View Dashboard
             </motion.button>
           </Link>
-          <Link href="https://report.roadsense.com" target="_blank" rel="noopener noreferrer">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-3 rounded-full bg-green-600 text-white font-medium flex items-center gap-2"
-            >
-              <Camera className="h-4 w-4" />
-              Report Pothole
-            </motion.button>
-          </Link>
-        </motion.div>
-
-        {/* User types section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8"
-        >
-          {/* For Drivers */}
-          <div className="bg-background/30 backdrop-blur-sm p-6 rounded-xl border border-border/50">
-            <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 mx-auto">
-              <MapPin className="h-6 w-6 text-blue-500" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">For Drivers & Commuters</h3>
-            <ul className="text-left space-y-2 mb-4">
-              <li className="flex items-start gap-2">
-                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Plan smoother journeys by avoiding pothole-heavy routes</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Get real-time alerts about road hazards on your route</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-blue-500/20 text-blue-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Contribute to safer roads by reporting potholes you encounter</span>
-              </li>
-            </ul>
-            <Link href="/map">
-              <button className="w-full py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                Explore Map
-              </button>
-            </Link>
-          </div>
-
-          {/* For Agencies */}
-          <div className="bg-background/30 backdrop-blur-sm p-6 rounded-xl border border-border/50">
-            <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center mb-4 mx-auto">
-              <Shield className="h-6 w-6 text-green-500" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">For Agencies & Authorities</h3>
-            <ul className="text-left space-y-2 mb-4">
-              <li className="flex items-start gap-2">
-                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Access comprehensive analytics on road conditions</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Prioritize repairs based on severity and traffic impact</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="bg-green-500/20 text-green-500 rounded-full p-1 mt-0.5">
-                  <ArrowDown className="h-3 w-3" />
-                </span>
-                <span>Track repair progress and monitor recurring issues</span>
-              </li>
-            </ul>
-            <Link href="/dashboard">
-              <button className="w-full py-2 px-4 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
-                View Dashboard
-              </button>
-            </Link>
-          </div>
         </motion.div>
 
         <motion.div

@@ -46,7 +46,7 @@ export function HowItWorks() {
   ]
 
   return (
-    <section id="how-it-works" className="py-20  bg-black">
+    <section id="how-it-works" className="py-20 bg-muted/30">
       <div className="container mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -73,8 +73,9 @@ export function HowItWorks() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
                 transition={{ duration: 0.8, delay: index * 0.2 }}
-                className={`md:flex items-center ${index % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
-                  } gap-8 md:h-48`}
+                className={`md:flex items-center ${
+                  index % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"
+                } gap-8 md:h-48`}
               >
                 <div className={`flex-1 ${index % 2 === 0 ? "md:text-right" : "md:text-left"}`}>
                   <div className="flex items-center gap-2 mb-2 justify-start md:justify-end">
@@ -86,7 +87,7 @@ export function HowItWorks() {
                 </div>
 
                 <div className="hidden md:flex items-center justify-center relative">
-                  <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center z-10">
+                  <div className="h-12 w-12 rounded-full bg-primary/80 flex items-center justify-center z-10">
                     <span className="text-primary-foreground font-bold">{index + 1}</span>
                   </div>
                 </div>

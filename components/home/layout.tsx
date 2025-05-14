@@ -104,10 +104,10 @@ export function Layout({ children }: LayoutProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background z-50 md:hidden"
+            className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 md:hidden"
           >
             <div className="flex flex-col h-full">
-              <div className="flex justify-between items-center px-6 py-4 border-b">
+              <div className="flex justify-between items-center px-6 py-4 border-b border-border/50">
                 <Link href="/home" className="text-xl font-bold tracking-tighter flex items-center">
                   <MapPin className="h-5 w-5 mr-1 text-primary" />
                   road<span className="text-primary">sense</span>
@@ -136,7 +136,7 @@ export function Layout({ children }: LayoutProps) {
                   </Link>
                 ))}
 
-                <div className="pt-4 mt-4 border-t">
+                <div className="pt-4 mt-4 border-t border-border/50">
                   <Link
                     href="https://report.roadsense.com"
                     target="_blank"

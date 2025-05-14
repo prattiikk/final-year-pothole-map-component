@@ -350,7 +350,7 @@ const PotholeMap = () => {
           //@ts-expect-error
           const transformedPotholes = fetchedData.map((detection) => ({
             id: detection.id,
-            latitude: detection.location.latitude,
+            latitude: detection.location.latitude + 0.1,
             longitude: detection.location.longitude,
             severity:
               detection.detection.highestSeverity === "CRITICAL"
