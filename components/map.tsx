@@ -11,6 +11,8 @@ import { Navigation, Search, X, AlertTriangle } from "lucide-react"
 import currentLocationIcon from "./StickFigure"
 import { MapSidebar } from "./map-sidebar"
 import { HeatLayer, HeatmapLegend } from "@/components/heatmap-layer"
+// Import the ReportGenerator component
+import { ReportGenerator } from "@/components/report-generator"
 
 interface Pothole {
   id: string
@@ -117,8 +119,7 @@ const PotholeMap = () => {
     })
   }, [potholes, severityFilter, dateFilter])
 
-
-  console.log(selectedPothole);
+  console.log(selectedPothole)
 
   // Get user location once when component mounts
   useEffect(() => {
@@ -351,9 +352,14 @@ const PotholeMap = () => {
             id: detection.id,
             latitude: detection.location.latitude,
             longitude: detection.location.longitude,
-            severity: detection.detection.highestSeverity
-              ? Number.parseInt(detection.detection.highestSeverity) * 2 // Adjust severity scaling if needed
-              : 5, // Default severity
+            severity:
+              detection.detection.highestSeverity === "CRITICAL"
+                ? 8
+                : detection.detection.highestSeverity === "HIGH"
+                  ? 6
+                  : detection.detection.highestSeverity === "MEDIUM"
+                    ? 4
+                    : 2, // Convert string severity to number
             reportedBy: detection.metadata.username || "Anonymous",
             annoted_img: detection.images.annotated || "", // Base64 encoded image
             original_img: detection.images.original || "",
@@ -556,12 +562,10 @@ const PotholeMap = () => {
     stats.averageSeverity =
       filteredPotholes.length > 0 && !isNaN(severitySum)
         ? Number.parseFloat((severitySum / filteredPotholes.length).toFixed(1))
-        : 0;
+        : 0
 
     return stats
   }
-
-  // const stats = calculateStatistics()
 
   return (
     <div className="flex flex-col h-full bg-black text-white">
@@ -621,6 +625,9 @@ const PotholeMap = () => {
                 </div>
               )}
             </div>
+
+            {/* Report Generator */}
+            <ReportGenerator potholes={filteredPotholes} locationName={locationName} searchRadius={searchRadius} />
 
             {/* Current location button */}
             {location && (
@@ -735,17 +742,10 @@ const PotholeMap = () => {
               </button>
             </div>
 
-
             {selectedPothole.img && (
               <div className="mb-4">
-                <img
-                  src={`${selectedPothole.img}`}
-                  alt="Pothole"
-                  className="w-full h-48 object-cover rounded-lg"
-                />
+                <img src={`${selectedPothole.img}`} alt="Pothole" className="w-full h-48 object-cover rounded-lg" />
               </div>
-
-
             )}
 
             <div className="space-y-4">

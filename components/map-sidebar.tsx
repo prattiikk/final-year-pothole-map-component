@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { Layers, Filter, MapIcon, ChevronRight, ChevronLeft, AlertTriangle, Info, Flame } from "lucide-react"
+import { ReportGenerator } from "@/components/report-generator"
 
 interface MapLayer {
   name: string
@@ -112,7 +113,6 @@ export function MapSidebar({
     return "#FFCD1C" // Low - Yellow
   }
 
-
   // Add a resize handler for the sidebar
   const startResize = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -156,24 +156,27 @@ export function MapSidebar({
           {/* Tabs */}
           <div className="flex border-b border-gray-800">
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "filters" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-                }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
+                activeTab === "filters" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+              }`}
               onClick={() => setActiveTab("filters")}
             >
               <Filter size={16} className="mr-1" />
               Filters
             </button>
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "layers" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-                }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
+                activeTab === "layers" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+              }`}
               onClick={() => setActiveTab("layers")}
             >
               <Layers size={16} className="mr-1" />
               Layers
             </button>
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "analytics" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-                }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
+                activeTab === "analytics" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+              }`}
               onClick={() => setActiveTab("analytics")}
             >
               <AlertTriangle size={16} className="mr-1" />
@@ -252,8 +255,9 @@ export function MapSidebar({
                       Medium
                     </button>
                     <button
-                      className={`text-sm py-1 px-2 rounded ${severityFilter === "low" ? "bg-yellow-500 text-black" : "bg-gray-700"
-                        }`}
+                      className={`text-sm py-1 px-2 rounded ${
+                        severityFilter === "low" ? "bg-yellow-500 text-black" : "bg-gray-700"
+                      }`}
                       onClick={() => setSeverityFilter("low")}
                     >
                       Low
@@ -485,8 +489,11 @@ export function MapSidebar({
 
           {/* Footer */}
           <div className="p-4 border-t border-gray-800">
-            <div className="text-sm text-gray-400">
-              Showing {filteredPotholes.length} of {potholes.length} potholes
+            <div className="flex flex-col gap-3">
+              <div className="text-sm text-gray-400">
+                Showing {filteredPotholes.length} of {potholes.length} potholes
+              </div>
+              <ReportGenerator potholes={filteredPotholes} locationName="Current Area" searchRadius={searchRadius} />
             </div>
           </div>
         </div>

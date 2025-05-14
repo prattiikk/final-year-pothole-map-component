@@ -24,139 +24,164 @@ export function MapPreview() {
     canvas.height = container.offsetHeight
     container.appendChild(canvas)
 
-    // Draw map background
-    ctx.fillStyle = "#111"
+    // Draw map background with a light color for a map-like appearance
+    ctx.fillStyle = "#f0f0f0"
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Draw grid lines
-    ctx.strokeStyle = "#333"
-    ctx.lineWidth = 1
+    // Draw a grid of streets
+    const drawStreets = () => {
+      // Main streets
+      ctx.strokeStyle = "#d0d0d0"
+      ctx.lineWidth = 8
 
-    // Vertical grid lines
-    for (let x = 0; x <= canvas.width; x += 50) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, canvas.height)
-      ctx.stroke()
-    }
-
-    // Horizontal grid lines
-    for (let y = 0; y <= canvas.height; y += 50) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(canvas.width, y)
-      ctx.stroke()
-    }
-
-    // Draw roads
-    ctx.strokeStyle = "#444"
-    ctx.lineWidth = 3
-
-    // Main road
-    ctx.beginPath()
-    ctx.moveTo(canvas.width * 0.1, canvas.height * 0.5)
-    ctx.lineTo(canvas.width * 0.9, canvas.height * 0.5)
-    ctx.stroke()
-
-    // Cross roads
-    ctx.beginPath()
-    ctx.moveTo(canvas.width * 0.3, canvas.height * 0.2)
-    ctx.lineTo(canvas.width * 0.3, canvas.height * 0.8)
-    ctx.stroke()
-
-    ctx.beginPath()
-    ctx.moveTo(canvas.width * 0.7, canvas.height * 0.2)
-    ctx.lineTo(canvas.width * 0.7, canvas.height * 0.8)
-    ctx.stroke()
-
-    // Draw potholes
-    const potholes = [
-      { x: canvas.width * 0.3, y: canvas.height * 0.5, severity: "high" },
-      { x: canvas.width * 0.5, y: canvas.height * 0.5, severity: "medium" },
-      { x: canvas.width * 0.7, y: canvas.height * 0.5, severity: "low" },
-      { x: canvas.width * 0.2, y: canvas.height * 0.4, severity: "medium" },
-      { x: canvas.width * 0.8, y: canvas.height * 0.6, severity: "high" },
-    ]
-
-    potholes.forEach((pothole) => {
-      let color
-      let radius
-
-      switch (pothole.severity) {
-        case "high":
-          color = "#FF424F"
-          radius = 8
-          break
-        case "medium":
-          color = "#FF9E0D"
-          radius = 6
-          break
-        default:
-          color = "#FFCD1C"
-          radius = 5
+      // Horizontal main streets
+      for (let y = 50; y < canvas.height; y += 120) {
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(canvas.width, y)
+        ctx.stroke()
       }
 
-      // Draw pothole
-      ctx.beginPath()
-      ctx.arc(pothole.x, pothole.y, radius, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.fill()
-
-      // Draw glow effect
-      const gradient = ctx.createRadialGradient(pothole.x, pothole.y, radius * 0.5, pothole.x, pothole.y, radius * 2)
-      gradient.addColorStop(0, color + "80")
-      gradient.addColorStop(1, "transparent")
-
-      ctx.beginPath()
-      ctx.arc(pothole.x, pothole.y, radius * 2, 0, Math.PI * 2)
-      ctx.fillStyle = gradient
-      ctx.fill()
-    })
-
-    // Draw current location
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-
-    // Outer pulse
-    function drawPulse() {
-      let pulseRadius = 10
-      let opacity = 0.8
-
-      function animate() {
-        if (!ctx) return
-        ctx.clearRect(centerX - 30, centerY - 30, 60, 60)
-
-        // Redraw background and grid in the cleared area
-        ctx.fillStyle = "#111"
-        ctx.fillRect(centerX - 30, centerY - 30, 60, 60)
-
-        // Draw pulse
+      // Vertical main streets
+      for (let x = 50; x < canvas.width; x += 120) {
         ctx.beginPath()
-        ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(39, 110, 241, ${opacity})`
-        ctx.fill()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, canvas.height)
+        ctx.stroke()
+      }
 
-        // Draw center dot
+      // Secondary streets
+      ctx.strokeStyle = "#e0e0e0"
+      ctx.lineWidth = 4
+
+      // Horizontal secondary streets
+      for (let y = 90; y < canvas.height; y += 120) {
         ctx.beginPath()
-        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2)
-        ctx.fillStyle = "#276EF1"
-        ctx.fill()
+        ctx.moveTo(0, y)
+        ctx.lineTo(canvas.width, y)
+        ctx.stroke()
+      }
 
-        pulseRadius += 0.3
-        opacity -= 0.01
+      // Vertical secondary streets
+      for (let x = 90; x < canvas.width; x += 120) {
+        ctx.beginPath()
+        ctx.moveTo(x, 0)
+        ctx.lineTo(x, canvas.height)
+        ctx.stroke()
+      }
+    }
 
-        if (pulseRadius > 20) {
-          pulseRadius = 10
-          opacity = 0.8
+    // Draw blocks (buildings)
+    const drawBlocks = () => {
+      ctx.fillStyle = "#e8e8e8"
+
+      for (let y = 10; y < canvas.height; y += 120) {
+        for (let x = 10; x < canvas.width; x += 120) {
+          // Skip some blocks randomly to create variety
+          if (Math.random() > 0.2) {
+            const width = 70 + Math.random() * 20
+            const height = 70 + Math.random() * 20
+            ctx.fillRect(x, y, width, height)
+          }
+        }
+      }
+    }
+
+    // Draw potholes on streets
+    const drawPotholes = () => {
+      // Define pothole locations on streets
+      const potholes = [
+        // On horizontal streets
+        { x: 120, y: 50, severity: "high" },
+        { x: 250, y: 50, severity: "medium" },
+        { x: 400, y: 170, severity: "low" },
+        { x: 180, y: 290, severity: "high" },
+        { x: 350, y: 290, severity: "medium" },
+        // On vertical streets
+        { x: 50, y: 120, severity: "medium" },
+        { x: 50, y: 220, severity: "high" },
+        { x: 170, y: 150, severity: "low" },
+        { x: 290, y: 80, severity: "medium" },
+        { x: 290, y: 200, severity: "high" },
+      ]
+
+      potholes.forEach((pothole) => {
+        let color, radius
+
+        switch (pothole.severity) {
+          case "high":
+            color = "#FF424F"
+            radius = 8
+            break
+          case "medium":
+            color = "#FF9E0D"
+            radius = 6
+            break
+          default:
+            color = "#FFCD1C"
+            radius = 5
         }
 
-        requestAnimationFrame(animate)
-      }
+        // Draw pothole
+        ctx.beginPath()
+        ctx.arc(pothole.x, pothole.y, radius, 0, Math.PI * 2)
+        ctx.fillStyle = color
+        ctx.fill()
 
-      animate()
+        // Draw glow effect
+        const gradient = ctx.createRadialGradient(pothole.x, pothole.y, radius * 0.5, pothole.x, pothole.y, radius * 2)
+        gradient.addColorStop(0, color + "80")
+        gradient.addColorStop(1, "transparent")
+
+        ctx.beginPath()
+        ctx.arc(pothole.x, pothole.y, radius * 2, 0, Math.PI * 2)
+        ctx.fillStyle = gradient
+        ctx.fill()
+      })
     }
 
-    drawPulse()
+    // Draw map elements
+    drawBlocks()
+    drawStreets()
+    drawPotholes()
+
+    // Draw a legend
+    const drawLegend = () => {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
+      ctx.fillRect(canvas.width - 120, 10, 110, 80)
+      ctx.strokeStyle = "#ccc"
+      ctx.strokeRect(canvas.width - 120, 10, 110, 80)
+
+      ctx.fillStyle = "#333"
+      ctx.font = "10px Arial"
+      ctx.fillText("Pothole Severity", canvas.width - 110, 25)
+
+      // High severity
+      ctx.beginPath()
+      ctx.arc(canvas.width - 105, 40, 5, 0, Math.PI * 2)
+      ctx.fillStyle = "#FF424F"
+      ctx.fill()
+      ctx.fillStyle = "#333"
+      ctx.fillText("High", canvas.width - 90, 43)
+
+      // Medium severity
+      ctx.beginPath()
+      ctx.arc(canvas.width - 105, 60, 5, 0, Math.PI * 2)
+      ctx.fillStyle = "#FF9E0D"
+      ctx.fill()
+      ctx.fillStyle = "#333"
+      ctx.fillText("Medium", canvas.width - 90, 63)
+
+      // Low severity
+      ctx.beginPath()
+      ctx.arc(canvas.width - 105, 80, 5, 0, Math.PI * 2)
+      ctx.fillStyle = "#FFCD1C"
+      ctx.fill()
+      ctx.fillStyle = "#333"
+      ctx.fillText("Low", canvas.width - 90, 83)
+    }
+
+    drawLegend()
 
     return () => {
       if (container.contains(canvas)) {
