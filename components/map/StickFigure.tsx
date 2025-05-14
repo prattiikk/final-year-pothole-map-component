@@ -1,3 +1,4 @@
+'use client'
 // import L from "leaflet";
 
 // // Custom White Stick Figure Icon (with light blue outline for contrast)
@@ -11,7 +12,7 @@
 //             text-align: center;
 //             font-size: 20px;
 //             gap: 2px;">
-            
+
 //             <!-- Head -->
 //             <div style="
 //                 width: 12px; 
@@ -19,7 +20,7 @@
 //                 background-color: white; 
 //                 border-radius: 50%;
 //                 border: 2px solid #ADD8E6;"></div>
-            
+
 //             <!-- Arms and Body -->
 //             <div style="display: flex; align-items: center; gap: 2px;">
 //                 <div style="

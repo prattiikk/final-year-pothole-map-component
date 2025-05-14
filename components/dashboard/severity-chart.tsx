@@ -1,5 +1,18 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts"
 
 interface SeverityChartProps {
   data: Array<{
@@ -11,6 +24,17 @@ interface SeverityChartProps {
 }
 
 export function SeverityChart({ data, className }: SeverityChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle>Severity Distribution</CardTitle>
+          <CardDescription>No data available to display.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   return (
     <Card className={className}>
       <CardHeader>
@@ -30,16 +54,18 @@ export function SeverityChart({ data, className }: SeverityChartProps) {
                 paddingAngle={5}
                 dataKey="value"
                 nameKey="name"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) =>
+                  `${name}: ${(percent * 100).toFixed(0)}%`
+                }
                 labelLine={false}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                  <Cell key={`cell-${entry.name}-${index}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip
                 formatter={(value: number) => [`${value} potholes`, "Count"]}
-                labelFormatter={(name) => `Severity: ${name}`}
+                labelFormatter={(label: any) => `Severity: ${label}`}
               />
               <Legend />
             </PieChart>

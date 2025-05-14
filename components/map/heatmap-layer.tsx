@@ -15,9 +15,9 @@ const loadHeatLayer = async () => {
 
 interface HeatLayerProps {
   points:
-    | Array<[number, number, number?]>
-    | Array<{ lat: number; lng: number; intensity?: number }>
-    | Array<{ latitude: number; longitude: number; severity?: number }>
+  | Array<[number, number, number?]>
+  | Array<{ lat: number; lng: number; intensity?: number }>
+  | Array<{ latitude: number; longitude: number; severity?: number }>
   radius?: number
   blur?: number
   maxZoom?: number
@@ -95,7 +95,7 @@ export function HeatLayer({
 // Add a Legend component that can be used with the heat layer
 export function HeatmapLegend() {
   return (
-    <div className="absolute bottom-6 right-4 z-40 bg-black bg-opacity-70 p-3 rounded-md">
+    <div className="z-50 border-white bg-black bg-opacity-70 p-3 rounded-md">
       <div className="text-white text-xs mb-2 font-semibold">Pothole Intensity</div>
       <div className="flex h-6 w-48">
         <div className="flex-1 h-full bg-gradient-to-r from-blue-500 via-cyan-400 via-green-400 via-yellow-300 to-red-500" />

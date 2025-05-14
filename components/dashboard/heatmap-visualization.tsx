@@ -1,6 +1,6 @@
+"use client"
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 //@ts-nocheck
-"use client"
 
 import { useRef, useEffect, useState } from "react"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"
@@ -75,7 +75,13 @@ const HeatLayer = ({
         0.7: "yellow",
         0.9: "red",
       },
+
     }
+
+
+
+
+
 
     // Ensure points are in the correct format for Leaflet.heat
     const formattedPoints = points.map((point) => {
@@ -102,6 +108,12 @@ const HeatLayer = ({
   return null
 }
 
+
+
+
+
+
+
 // Legend component
 const Legend = () => {
   return (
@@ -119,6 +131,13 @@ const Legend = () => {
   )
 }
 
+
+
+
+
+
+
+
 interface HeatmapVisualizationProps {
   data: any[] // Using any to flexibly handle different data structures
   center?: [number, number]
@@ -129,17 +148,23 @@ interface HeatmapVisualizationProps {
   radius?: number
   blur?: number
   maxZoom?: number
+  interaction?: boolean
 }
+
+
+
 
 export function HeatmapVisualization({
   data = [],
   center = [51.505, -0.09],
   zoom = 13,
-  showPoints = false,
+  // showPoints = false,
   debug = false,
   radius = 25,
   blur = 15,
   maxZoom = 18,
+  interaction = false,
+
 }: HeatmapVisualizationProps) {
   // Initialize Leaflet map
   const [mapReady, setMapReady] = useState(false)
@@ -302,7 +327,14 @@ export function HeatmapVisualization({
 
   return (
     <div className="w-full h-full relative">
-      <MapContainer center={mapCenter} zoom={zoom} style={{ height: "100%", width: "100%" }} className="z-0">
+      <MapContainer center={mapCenter} zoom={zoom} style={{ height: "100%", width: "100%" }} className="z-0"
+        scrollWheelZoom={!interaction}
+        dragging={!interaction}
+        doubleClickZoom={!interaction}
+        zoomControl={!interaction}
+        touchZoom={!interaction}
+        keyboard={!interaction}
+        attributionControl={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

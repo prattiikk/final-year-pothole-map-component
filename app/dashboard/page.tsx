@@ -10,7 +10,6 @@ import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SeverityChart } from "@/components/dashboard/severity-chart"
 import { DetectionTypesChart } from "@/components/dashboard/detection-types-chart"
 import { ConfidenceChart } from "@/components/dashboard/confidence-chart"
-import { TimeSeriesChart } from "@/components/dashboard/time-series-chart"
 import { MapOverview } from "@/components/dashboard/map-overview"
 import { DetectionTable } from "@/components/dashboard/detection-table"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
@@ -61,6 +60,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<DetectionData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.006 }); // Default to NYC
+
 
   // Fetch data from API
   useEffect(() => {
@@ -70,6 +71,10 @@ export default function DashboardPage() {
         // Get user's location to use as default location
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
             fetchDetectionData(position.coords.latitude, position.coords.longitude)
           },
           (err) => {
@@ -145,6 +150,7 @@ export default function DashboardPage() {
       color: key === "LOW" ? "#00C49F" : key === "MEDIUM" ? "#FFBB28" : key === "HIGH" ? "#FF8042" : "#FF6B6B",
     }))
   }, [data])
+  console.log("pie chart data -> ", severityData)
 
   // Prepare detection types data for chart
   const detectionTypesData = useMemo(() => {
@@ -192,33 +198,6 @@ export default function DashboardPage() {
     })
 
     return distribution
-  }, [data])
-
-  // Prepare time series data for chart
-  const timeSeriesData = useMemo(() => {
-    // Group detections by day
-    const groupedByDay = _.groupBy(data, (item) => {
-      const date = new Date(item.metadata.createdAt)
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-    })
-
-    // Get the last 7 days
-    const today = new Date()
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-    }).reverse()
-
-    // Create data points for each day
-    return last7Days.map((date) => {
-      const reports = groupedByDay[date] || []
-      return {
-        date,
-        count: reports.length,
-        avgConfidence: reports.length > 0 ? _.meanBy(reports, (item) => item.detection.averageConfidence) : 0,
-      }
-    })
   }, [data])
 
   // Prepare heatmap data
@@ -325,12 +304,8 @@ export default function DashboardPage() {
 
             {/* Map Tab */}
             <TabsContent value="map">
-              <MapOverview data={heatmapData} />
-            </TabsContent>
-
-            {/* Trends Tab */}
-            <TabsContent value="trends">
-              <TimeSeriesChart data={timeSeriesData} />
+              <MapOverview data={heatmapData} centerdata={[userLocation.lat, userLocation.lng]}
+              />
             </TabsContent>
 
             {/* Details Tab */}
