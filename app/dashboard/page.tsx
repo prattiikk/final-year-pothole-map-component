@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Layout } from "@/components/layout"
+import { Layout } from "@/components/home/layout"
 import _ from "lodash"
 import { motion } from "framer-motion"
 
-// Import our new dashboard components
+// Import our dashboard components
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SeverityChart } from "@/components/dashboard/severity-chart"
 import { DetectionTypesChart } from "@/components/dashboard/detection-types-chart"
@@ -15,6 +15,7 @@ import { MapOverview } from "@/components/dashboard/map-overview"
 import { DetectionTable } from "@/components/dashboard/detection-table"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { TabsContent } from "@/components/ui/tabs"
+import { UnifiedVisualizations } from "@/components/dashboard/unified-visualizations"
 
 // Define the types based on the API response
 type Detection = {
@@ -337,6 +338,16 @@ export default function DashboardPage() {
               <DetectionTable data={detectionTableData} />
             </TabsContent>
           </DashboardTabs>
+        </motion.div>
+
+        {/* Advanced Visualizations */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="mt-8"
+        >
+          <UnifiedVisualizations data={data} />
         </motion.div>
       </div>
     </Layout>

@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input"
 
 export function CallToAction() {
   return (
-    <section className="py-20">
-      <div className="container">
+    <section className="py-20 mx-auto">
+      <div className="container mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

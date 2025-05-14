@@ -10,9 +10,9 @@ import { debounce } from "lodash"
 import { Navigation, Search, X, AlertTriangle } from "lucide-react"
 import currentLocationIcon from "./StickFigure"
 import { MapSidebar } from "./map-sidebar"
-import { HeatLayer, HeatmapLegend } from "@/components/heatmap-layer"
+import { HeatLayer, HeatmapLegend } from "@/components/map/heatmap-layer"
 // Import the ReportGenerator component
-import { ReportGenerator } from "@/components/report-generator"
+import { ReportGenerator } from "@/components/map/report-generator"
 
 interface Pothole {
   id: string

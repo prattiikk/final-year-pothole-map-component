@@ -1,11 +1,12 @@
-import { HeroSection } from "@/components/hero-section"
-import { FeatureShowcase } from "@/components/feature-showcase"
-import { MapPreview } from "@/components/map-preview"
-import { DataVisualizationPreview } from "@/components/data-visualization-preview"
-import { CommunitySection } from "@/components/community-section"
-import { IntegratedPlatform } from "@/components/integrated-platform"
-import { Footer } from "@/components/footer"
-import { Layout } from "@/components/layout"
+import { HeroSection } from "@/components/home/hero-section"
+import { FeatureShowcase } from "@/components/home/feature-showcase"
+import { MapPreview } from "@/components/home/map-preview"
+import { DataVisualizationPreview } from "@/components/home/data-visualization-preview"
+import { Footer } from "@/components/home/footer"
+import { Layout } from "@/components/home/layout"
+import { CallToAction } from "@/components/home/call-to-action"
+import { HowItWorks } from "@/components/home/how-it-works"
+
 
 export default function HomePage() {
   return (
@@ -13,9 +14,9 @@ export default function HomePage() {
       <HeroSection />
       <MapPreview />
       <FeatureShowcase />
-      <IntegratedPlatform />
+      <HowItWorks />
       <DataVisualizationPreview />
-      <CommunitySection />
+      <CallToAction />
       <Footer />
     </Layout>
   )

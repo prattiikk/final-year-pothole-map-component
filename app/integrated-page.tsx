@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import { LandingPage } from "../components/landing-page"
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
-const PotholeMap = dynamic(() => import("../components/map"), { ssr: false })
+const PotholeMap = dynamic(() => import("../components/map/map"), { ssr: false })
 
 export default function IntegratedPage() {
   const [showMap, setShowMap] = useState(false)

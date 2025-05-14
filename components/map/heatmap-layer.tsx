@@ -40,7 +40,7 @@ export function HeatLayer({
   },
 }: HeatLayerProps) {
   const map = useMap()
-  const layerRef = useRef<any>(null)
+  const layerRef = useRef<L.Layer | null>(null)
   const [isHeatLayerLoaded, setIsHeatLayerLoaded] = useState(false)
 
   // Load the heat library

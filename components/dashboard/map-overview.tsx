@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { MapPin } from "lucide-react"
 import Link from "next/link"
-import { HeatmapVisualization } from "@/components/heatmap-visualization"
+import { HeatmapVisualization } from "@/components/dashboard/heatmap-visualization"
 
 interface MapOverviewProps {
   data: Array<{

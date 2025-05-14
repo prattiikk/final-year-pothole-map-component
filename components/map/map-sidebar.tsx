@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { Layers, Filter, MapIcon, ChevronRight, ChevronLeft, AlertTriangle, Info, Flame } from "lucide-react"
-import { ReportGenerator } from "@/components/report-generator"
+import { ReportGenerator } from "@/components/map/report-generator"
 
 interface MapLayer {
   name: string
