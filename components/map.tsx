@@ -117,6 +117,9 @@ const PotholeMap = () => {
     })
   }, [potholes, severityFilter, dateFilter])
 
+
+  console.log(selectedPothole);
+
   // Get user location once when component mounts
   useEffect(() => {
     if (navigator.geolocation && !locationInitializedRef.current) {
@@ -352,6 +355,8 @@ const PotholeMap = () => {
               ? Number.parseInt(detection.detection.highestSeverity) * 2 // Adjust severity scaling if needed
               : 5, // Default severity
             reportedBy: detection.metadata.username || "Anonymous",
+            annoted_img: detection.images.annotated || "", // Base64 encoded image
+            original_img: detection.images.original || "",
             img: detection.images.annotated || "", // Base64 encoded image
             dateReported: detection.metadata.createdAt,
           }))
@@ -401,15 +406,6 @@ const PotholeMap = () => {
   const handleLayerChange = (layer: MapLayerOption) => {
     setCurrentMapLayer(layer)
   }
-
-  // Prepare heatmap data
-  const heatmapData = useMemo(() => {
-    return filteredPotholes.map((pothole) => ({
-      lat: pothole.latitude,
-      lng: pothole.longitude,
-      intensity: pothole.severity / 2, // Scale intensity based on severity
-    }))
-  }, [filteredPotholes])
 
   // LocationMarker component for handling map events and displaying user location
   const LocationMarker = () => {
@@ -557,14 +553,15 @@ const PotholeMap = () => {
         stats.byDate.older++
       }
     })
-
     stats.averageSeverity =
-      filteredPotholes.length > 0 ? Number.parseFloat((severitySum / filteredPotholes.length).toFixed(1)) : 0
+      filteredPotholes.length > 0 && !isNaN(severitySum)
+        ? Number.parseFloat((severitySum / filteredPotholes.length).toFixed(1))
+        : 0;
 
     return stats
   }
 
-  //  const stats = calculateStatistics()
+  // const stats = calculateStatistics()
 
   return (
     <div className="flex flex-col h-full bg-black text-white">
@@ -738,14 +735,17 @@ const PotholeMap = () => {
               </button>
             </div>
 
+
             {selectedPothole.img && (
               <div className="mb-4">
                 <img
-                  src={`data:image/jpeg;base64,${selectedPothole.img}`}
+                  src={`${selectedPothole.img}`}
                   alt="Pothole"
                   className="w-full h-48 object-cover rounded-lg"
                 />
               </div>
+
+
             )}
 
             <div className="space-y-4">

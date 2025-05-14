@@ -30,7 +30,7 @@ export function HeatLayer({
   radius = 25,
   blur = 15,
   maxZoom = 18,
-  max = 10,
+  max = 2,
   gradient = {
     0.1: "blue",
     0.3: "cyan",

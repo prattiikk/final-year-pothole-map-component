@@ -112,14 +112,6 @@ export function MapSidebar({
     return "#FFCD1C" // Low - Yellow
   }
 
-  // Get heatmap data
-  const getHeatmapData = () => {
-    return potholes.map((item) => ({
-      latitude: item.latitude,
-      longitude: item.longitude,
-      severity: item.severity >= 7 ? 8 : item.severity >= 4 ? 5 : 2,
-    }))
-  }
 
   // Add a resize handler for the sidebar
   const startResize = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -164,27 +156,24 @@ export function MapSidebar({
           {/* Tabs */}
           <div className="flex border-b border-gray-800">
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
-                activeTab === "filters" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-              }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "filters" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+                }`}
               onClick={() => setActiveTab("filters")}
             >
               <Filter size={16} className="mr-1" />
               Filters
             </button>
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
-                activeTab === "layers" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-              }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "layers" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+                }`}
               onClick={() => setActiveTab("layers")}
             >
               <Layers size={16} className="mr-1" />
               Layers
             </button>
             <button
-              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${
-                activeTab === "analytics" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
-              }`}
+              className={`flex-1 py-2 px-3 text-sm flex justify-center items-center ${activeTab === "analytics" ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
+                }`}
               onClick={() => setActiveTab("analytics")}
             >
               <AlertTriangle size={16} className="mr-1" />
@@ -263,9 +252,8 @@ export function MapSidebar({
                       Medium
                     </button>
                     <button
-                      className={`text-sm py-1 px-2 rounded ${
-                        severityFilter === "low" ? "bg-yellow-500 text-black" : "bg-gray-700"
-                      }`}
+                      className={`text-sm py-1 px-2 rounded ${severityFilter === "low" ? "bg-yellow-500 text-black" : "bg-gray-700"
+                        }`}
                       onClick={() => setSeverityFilter("low")}
                     >
                       Low
@@ -388,7 +376,9 @@ export function MapSidebar({
                   </div>
                   <div className="bg-gray-800 p-3 rounded-lg">
                     <h3 className="text-gray-400 text-xs mb-1">Avg. Severity</h3>
-                    <p className="text-2xl font-bold">{stats.averageSeverity}</p>
+                    <p className="text-2xl font-bold">
+                      {isNaN(stats.averageSeverity) ? "N/A" : stats.averageSeverity.toFixed(2)}
+                    </p>
                   </div>
                 </div>
 
