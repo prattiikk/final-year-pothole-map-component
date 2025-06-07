@@ -10,11 +10,14 @@ import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SeverityChart } from "@/components/dashboard/severity-chart"
 import { DetectionTypesChart } from "@/components/dashboard/detection-types-chart"
 import { ConfidenceChart } from "@/components/dashboard/confidence-chart"
-import { MapOverview } from "@/components/dashboard/map-overview"
+// import { MapOverview } from "@/components/dashboard/map-overview"
+const MapOverview = dynamic(() => import("@/components/dashboard/map-overview"), { ssr: false })
+
 import { DetectionTable } from "@/components/dashboard/detection-table"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { TabsContent } from "@/components/ui/tabs"
 import { UnifiedVisualizations } from "@/components/dashboard/unified-visualizations"
+import dynamic from "next/dynamic"
 
 // Define the types based on the API response
 type Detection = {
@@ -83,7 +86,7 @@ export default function DashboardPage() {
             fetchDetectionData(40.7128, -74.006) // New York coordinates as default
           },
         )
-      } catch (err) {
+      } catch {
         setError("Failed to fetch data")
         setLoading(false)
       }
@@ -100,7 +103,7 @@ export default function DashboardPage() {
         const result = await response.json()
         setData(result.data || [])
         setLoading(false)
-      } catch (err) {
+      } catch {
         setError("Failed to fetch detection data")
         setLoading(false)
       }

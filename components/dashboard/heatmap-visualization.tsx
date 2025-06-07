@@ -1,6 +1,4 @@
 "use client"
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-//@ts-nocheck
 
 import { useRef, useEffect, useState } from "react"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"

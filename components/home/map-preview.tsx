@@ -10,7 +10,7 @@ import { HeatmapVisualization } from "@/components/dashboard/heatmap-visualizati
 
 
 
-export function MapPreview() {
+export default function MapPreview() {
   const mapRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(mapRef, { once: true })
   const [isMapRendered, setIsMapRendered] = useState(false)

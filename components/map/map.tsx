@@ -129,7 +129,7 @@ const PotholeMap = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userLocation = {
-            lat: position.coords.latitude,
+            lat: position.coords.latitude + 0.01,
             lng: position.coords.longitude,
           }
           setLocation(userLocation)
@@ -572,7 +572,7 @@ const PotholeMap = () => {
       {/* Header */}
       <header className="bg-black border-b border-gray-800 z-20 p-4">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-          <div>
+          <div className=" overflow-scroll">
             <h1 className="text-lg font-semibold">Pothole Map</h1>
             <p className="text-sm text-gray-400">Current Location: {locationName}</p>
             <p className="text-sm text-gray-400">Showing {filteredPotholes.length} potholes in your area</p>
@@ -627,7 +627,35 @@ const PotholeMap = () => {
             </div>
 
             {/* Report Generator */}
-            <ReportGenerator potholes={filteredPotholes} locationName={locationName} searchRadius={searchRadius} />
+            <ReportGenerator
+              detectionData={filteredPotholes.map((pothole) => ({
+                id: pothole.id,
+                location: {
+                  latitude: pothole.latitude,
+                  longitude: pothole.longitude,
+                },
+                images: {
+                  annotated: pothole.img,
+                  original: pothole.img,
+                },
+                metadata: {
+                  username: pothole.reportedBy,
+                  createdAt: pothole.dateReported,
+                },
+                detection: {
+                  highestSeverity:
+                    pothole.severity >= 7
+                      ? "CRITICAL"
+                      : pothole.severity >= 4
+                        ? "HIGH"
+                        : pothole.severity >= 2
+                          ? "MEDIUM"
+                          : "LOW",
+                },
+              }))}
+              locationName={locationName}
+              searchRadius={searchRadius}
+            />
 
             {/* Current location button */}
             {location && (

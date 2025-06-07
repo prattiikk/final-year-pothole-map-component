@@ -36,8 +36,7 @@ export function HeroSection() {
             Mapping the <span className="text-primary">unseen</span> road
           </h1>
           <p className="text-lg md:text-xl text-foreground/80 max-w-2xl mx-auto mb-8">
-            Transform your daily commute data into actionable insights. Identify road anomalies in real-time using your
-            dashcam or smartphone.
+            Turn everyday drives into powerful data. Help authorities fix road hazards faster and get real-time road condition updates to plan safer, smarter commutes — all from your smartphone.
           </p>
         </motion.div>
 
@@ -75,7 +74,7 @@ export function HeroSection() {
           transition={{ delay: 1.5, duration: 1 }}
           className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10"
         >
-          <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}>
+          <motion.div animate={{ y: [0, 10, 0] }} transition={{ repeat: Infinity, duration: 2 }}>
             <ArrowDown className="h-6 w-6 text-foreground/60" />
           </motion.div>
         </motion.div>
@@ -88,29 +87,32 @@ function MapVisualization() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+
     const canvas = canvasRef.current
     if (!canvas) return
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Set canvas dimensions
     const setCanvasDimensions = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
+      if (typeof window !== "undefined") {
+        canvas.width = window.innerWidth
+        canvas.height = window.innerHeight
+      }
     }
+
     setCanvasDimensions()
     window.addEventListener("resize", setCanvasDimensions)
 
-    // Create grid points
     const points: { x: number; y: number; size: number; speed: number; anomaly: boolean }[] = []
     const gridSize = 40
-    const rows = Math.ceil(canvas.height / gridSize)
-    const cols = Math.ceil(canvas.width / gridSize)
+    const rows = Math.ceil(window.innerHeight / gridSize)
+    const cols = Math.ceil(window.innerWidth / gridSize)
 
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
-        const anomaly = Math.random() < 0.05 // 5% chance of being an anomaly
+        const anomaly = Math.random() < 0.05
         points.push({
           x: j * gridSize,
           y: i * gridSize,
@@ -121,7 +123,6 @@ function MapVisualization() {
       }
     }
 
-    // Animation
     let animationFrameId: number
     let time = 0
 
@@ -129,39 +130,35 @@ function MapVisualization() {
       time += 0.01
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Draw grid points
       points.forEach((point) => {
         const offsetY = Math.sin(time * point.speed) * 5
 
         ctx.beginPath()
         ctx.arc(point.x, point.y + offsetY, point.size, 0, Math.PI * 2)
 
-        if (point.anomaly) {
-          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim()
-        } else {
-          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim() + "20"
-        }
+        ctx.fillStyle = point.anomaly
+          ? getComputedStyle(document.documentElement).getPropertyValue("--primary").trim()
+          : getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim() + "20"
 
         ctx.fill()
       })
 
-      // Draw connecting lines
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim() + "10"
       ctx.lineWidth = 0.5
 
       for (let i = 0; i < points.length; i++) {
         const pointA = points[i]
-        if (pointA.anomaly) {
-          for (let j = 0; j < points.length; j++) {
-            const pointB = points[j]
-            const distance = Math.sqrt(Math.pow(pointA.x - pointB.x, 2) + Math.pow(pointA.y - pointB.y, 2))
+        if (!pointA.anomaly) continue
 
-            if (distance < 100) {
-              ctx.beginPath()
-              ctx.moveTo(pointA.x, pointA.y + Math.sin(time * pointA.speed) * 5)
-              ctx.lineTo(pointB.x, pointB.y + Math.sin(time * pointB.speed) * 5)
-              ctx.stroke()
-            }
+        for (let j = 0; j < points.length; j++) {
+          const pointB = points[j]
+          const distance = Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y)
+
+          if (distance < 100) {
+            ctx.beginPath()
+            ctx.moveTo(pointA.x, pointA.y + Math.sin(time * pointA.speed) * 5)
+            ctx.lineTo(pointB.x, pointB.y + Math.sin(time * pointB.speed) * 5)
+            ctx.stroke()
           }
         }
       }
@@ -172,8 +169,10 @@ function MapVisualization() {
     animate()
 
     return () => {
-      window.removeEventListener("resize", setCanvasDimensions)
-      cancelAnimationFrame(animationFrameId)
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", setCanvasDimensions)
+        cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [])
 

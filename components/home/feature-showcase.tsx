@@ -26,8 +26,8 @@ export function FeatureShowcase() {
     },
     {
       icon: AlertTriangle,
-      title: "Real-time Alerts",
-      description: "Get notified about hazards on your route",
+      title: "decide best routes in advance",
+      description: "decide the best route based on the conditions of road",
     },
     {
       icon: BarChart,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { BarChart, PieChart, AlertTriangle, Clock } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -58,7 +58,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
     const confidenceChartRef = useRef<HTMLCanvasElement>(null)
 
     // Process data for visualization
-    const processData = () => {
+    const processData = useCallback(() => {
         // Count detections by severity
         const severityCounts: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 }
 
@@ -174,7 +174,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
             confidenceRanges,
             confidenceCounts,
         }
-    }
+    }, [data])
 
     // Draw bar chart for severity distribution
     useEffect(() => {
@@ -268,7 +268,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
             ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim() + "20"
             ctx.stroke()
         }
-    }, [data, activeTab])
+    }, [data, activeTab, processData])
 
     // Draw pie chart for class distribution
     useEffect(() => {
@@ -357,7 +357,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
             ctx.textAlign = "center"
             ctx.fillText("No class data available", centerX, centerY)
         }
-    }, [data, activeTab])
+    }, [data, activeTab, processData])
 
     // Draw line chart for time series
     useEffect(() => {
@@ -491,7 +491,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
             ctx.textAlign = "center"
             ctx.fillText(value.toString(), x, y - 10)
         })
-    }, [data, activeTab])
+    }, [data, activeTab, processData])
 
     // Draw confidence distribution
     useEffect(() => {
@@ -589,7 +589,7 @@ export function UnifiedVisualizations({ data, className }: UnifiedVisualizations
             ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--foreground").trim() + "10"
             ctx.stroke()
         }
-    }, [data, activeTab])
+    }, [data, activeTab, processData])
 
     return (
         <Card className={className}>

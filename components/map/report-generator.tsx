@@ -1,576 +1,485 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { FileDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import jsPDF from "jspdf"
 
-interface Pothole {
+// Define interfaces based on your API structure
+interface Detection {
   id: string
-  latitude: number
-  longitude: number
-  severity: number
-  reportedBy: string
-  img?: string
-  dateReported: string
+  bbox: number[]
+  center: number[]
+  confidence: number
+  class: string
+  severity: string
+  relativePosition?: number[]
+}
+
+interface DetectionData {
+  id: string
+  location: {
+    latitude: number
+    longitude: number
+    accuracy: number
+  }
+  images: {
+    original: string
+    annotated: string
+  }
+  metadata: {
+    userId: string
+    username: string
+    createdAt: string
+    updatedAt: string
+    notes: string
+  }
+  detection: {
+    totalDetections: number
+    averageConfidence: number
+    processingTimeMs: number
+    highestSeverity: string
+    status: string
+    counts: Record<string, number>
+    details: Detection[]
+  }
 }
 
 interface ReportGeneratorProps {
-  potholes: Pothole[]
+  detectionData: DetectionData[]
   locationName: string
   searchRadius: number
+  filters?: {
+    severity?: string
+    status?: string
+    days?: number
+  }
 }
 
-export function ReportGenerator({ potholes, locationName, searchRadius }: ReportGeneratorProps) {
+export function ReportGenerator({ 
+  detectionData, 
+  locationName, 
+  searchRadius,
+  filters = {} 
+}: ReportGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const severityChartRef = useRef<HTMLCanvasElement>(null)
-  const timelineChartRef = useRef<HTMLCanvasElement>(null)
-  const mapRef = useRef<HTMLCanvasElement>(null)
 
-  // Prepare chart data
-  useEffect(() => {
-    if (severityChartRef.current && potholes.length > 0) {
-      renderSeverityChart(severityChartRef.current, potholes)
-    }
-
-    if (timelineChartRef.current && potholes.length > 0) {
-      renderTimelineChart(timelineChartRef.current, potholes)
-    }
-
-    if (mapRef.current && potholes.length > 0) {
-      renderMapPreview(mapRef.current, potholes)
-    }
-  }, [potholes])
-
-  const renderSeverityChart = (canvas: HTMLCanvasElement, potholes: Pothole[]) => {
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    // Set canvas dimensions
-    canvas.width = 400
-    canvas.height = 200
-
-    // Count potholes by severity
-    const highSeverity = potholes.filter((p) => p.severity >= 7).length
-    const mediumSeverity = potholes.filter((p) => p.severity >= 4 && p.severity < 7).length
-    const lowSeverity = potholes.filter((p) => p.severity < 4).length
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Draw title
-    ctx.fillStyle = "#333"
-    ctx.font = "14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText("Pothole Severity Distribution", canvas.width / 2, 20)
-
-    // Draw pie chart
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const radius = 70
-
-    const total = highSeverity + mediumSeverity + lowSeverity
-
-    // Define severity data
-    const data = [
-      { label: "High", value: highSeverity, color: "#FF424F" },
-      { label: "Medium", value: mediumSeverity, color: "#FF9E0D" },
-      { label: "Low", value: lowSeverity, color: "#05A357" },
-    ]
-
-    let startAngle = 0
-    data.forEach((item) => {
-      const sliceAngle = (item.value / total) * 2 * Math.PI
-
-      // Draw slice
-      ctx.beginPath()
-      ctx.moveTo(centerX, centerY)
-      ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle)
-      ctx.closePath()
-      ctx.fillStyle = item.color
-      ctx.fill()
-
-      // Calculate label position
-      const midAngle = startAngle + sliceAngle / 2
-      const labelX = centerX + Math.cos(midAngle) * (radius + 20)
-      const labelY = centerY + Math.sin(midAngle) * (radius + 20)
-
-      // Draw label
-      ctx.fillStyle = "#333"
-      ctx.font = "12px Arial"
-      ctx.textAlign = midAngle < Math.PI ? "left" : "right"
-      ctx.fillText(`${item.label}: ${item.value} (${Math.round((item.value / total) * 100)}%)`, labelX, labelY)
-
-      startAngle += sliceAngle
-    })
-  }
-
-  const renderTimelineChart = (canvas: HTMLCanvasElement, potholes: Pothole[]) => {
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    // Set canvas dimensions
-    canvas.width = 400
-    canvas.height = 200
-
-    // Group potholes by date
-    const dateMap = new Map<string, number>()
-
-    // Get date range (last 7 days)
-    const today = new Date()
-    const dates = []
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateString = date.toISOString().split("T")[0]
-      dates.push(dateString)
-      dateMap.set(dateString, 0)
-    }
-
-    // Count potholes by date
-    potholes.forEach((pothole) => {
-      try {
-        const date = new Date(pothole.dateReported).toISOString().split("T")[0]
-        if (dateMap.has(date)) {
-          dateMap.set(date, (dateMap.get(date) || 0) + 1)
-        }
-      } catch (e) {
-        console.error("Error parsing date:", e)
+  const generateAnalytics = () => {
+    if (!detectionData || detectionData.length === 0) {
+      return {
+        totalReports: 0,
+        totalAnomalies: 0,
+        avgConfidence: 0,
+        severityBreakdown: {},
+        statusBreakdown: {},
+        anomalyTypes: {},
+        timeAnalysis: {},
+        locationHotspots: [],
+        riskAssessment: 'LOW',
+        recommendations: []
       }
-    })
-
-    // Prepare data for chart
-    const data = dates.map((date) => ({
-      date,
-      count: dateMap.get(date) || 0,
-    }))
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Draw title
-    ctx.fillStyle = "#333"
-    ctx.font = "14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText("Pothole Reports Over Time", canvas.width / 2, 20)
-
-    // Calculate chart dimensions
-    const chartLeft = 40
-    const chartRight = canvas.width - 20
-    const chartTop = 40
-    const chartBottom = canvas.height - 30
-    const chartWidth = chartRight - chartLeft
-    const chartHeight = chartBottom - chartTop
-
-    // Calculate max value for scaling
-    const maxValue = Math.max(...data.map((d) => d.count), 1)
-
-    // Draw axes
-    ctx.strokeStyle = "#ccc"
-    ctx.lineWidth = 1
-
-    // X-axis
-    ctx.beginPath()
-    ctx.moveTo(chartLeft, chartBottom)
-    ctx.lineTo(chartRight, chartBottom)
-    ctx.stroke()
-
-    // Y-axis
-    ctx.beginPath()
-    ctx.moveTo(chartLeft, chartTop)
-    ctx.lineTo(chartLeft, chartBottom)
-    ctx.stroke()
-
-    // Draw X-axis labels (dates)
-    ctx.fillStyle = "#333"
-    ctx.font = "10px Arial"
-    ctx.textAlign = "center"
-
-    data.forEach((item, index) => {
-      const x = chartLeft + index * (chartWidth / (data.length - 1))
-
-      // Format date to be more readable
-      const date = new Date(item.date)
-      const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`
-
-      ctx.fillText(formattedDate, x, chartBottom + 15)
-    })
-
-    // Draw Y-axis labels
-    ctx.textAlign = "right"
-    const yAxisSteps = 5
-
-    for (let i = 0; i <= yAxisSteps; i++) {
-      const value = Math.round((maxValue / yAxisSteps) * i)
-      const y = chartBottom - (value / maxValue) * chartHeight
-
-      ctx.fillText(value.toString(), chartLeft - 5, y + 3)
     }
 
-    // Draw line chart
-    ctx.beginPath()
-    data.forEach((item, index) => {
-      const x = chartLeft + index * (chartWidth / (data.length - 1))
-      const y = chartBottom - (item.count / maxValue) * chartHeight
+    // Basic statistics
+    const totalReports = detectionData.length
+    const totalAnomalies = detectionData.reduce((sum, data) => sum + (data.detection?.totalDetections || 0), 0)
+    const avgConfidence = detectionData.reduce((sum, data) => sum + (data.detection?.averageConfidence || 0), 0) / totalReports
 
-      if (index === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
+    // Severity breakdown
+    const severityBreakdown = detectionData.reduce((acc, data) => {
+      const severity = data.detection?.highestSeverity || 'UNKNOWN'
+      acc[severity] = (acc[severity] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // Status breakdown
+    const statusBreakdown = detectionData.reduce((acc, data) => {
+      const status = data.detection?.status || 'UNKNOWN'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // Anomaly types from individual detections
+    const anomalyTypes = detectionData.reduce((acc, data) => {
+      data.detection?.details?.forEach(detection => {
+        const type = detection.class || 'UNKNOWN'
+        acc[type] = (acc[type] || 0) + 1
+      })
+      return acc
+    }, {} as Record<string, number>)
+
+    // Time analysis - group by date
+    const timeAnalysis = detectionData.reduce((acc, data) => {
+      const date = new Date(data.metadata.createdAt).toDateString()
+      acc[date] = (acc[date] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // Location hotspots - group by approximate coordinates
+    const locationHotspots = detectionData.reduce((acc, data) => {
+      const lat = Math.round(data.location.latitude * 1000) / 1000
+      const lng = Math.round(data.location.longitude * 1000) / 1000
+      const key = `${lat},${lng}`
+      
+      if (!acc[key]) {
+        acc[key] = { lat, lng, count: 0, severities: {} as Record<string, number> }
       }
-    })
+      acc[key].count += 1
+      
+      const severity = data.detection?.highestSeverity || 'UNKNOWN'
+      acc[key].severities[severity] = (acc[key].severities[severity] || 0) + 1
+      
+      return acc
+    }, {} as Record<string, any>)
 
-    ctx.strokeStyle = "#276EF1"
-    ctx.lineWidth = 2
-    ctx.stroke()
+    // Convert to array and sort by count
+    const hotspotArray = Object.values(locationHotspots)
+      .sort((a: any, b: any) => b.count - a.count)
+      .slice(0, 10)
 
-    // Fill area under the line
-    ctx.lineTo(chartLeft + chartWidth, chartBottom)
-    ctx.lineTo(chartLeft, chartBottom)
-    ctx.closePath()
-    ctx.fillStyle = "rgba(39, 110, 241, 0.1)"
-    ctx.fill()
+    // Risk assessment
+    const highSeverityCount = severityBreakdown.HIGH || 0
+    const mediumSeverityCount = severityBreakdown.MEDIUM || 0
+    const riskAssessment = highSeverityCount > totalReports * 0.3 ? 'HIGH' :
+                          (highSeverityCount + mediumSeverityCount) > totalReports * 0.5 ? 'MEDIUM' : 'LOW'
 
-    // Draw data points
-    data.forEach((item, index) => {
-      const x = chartLeft + index * (chartWidth / (data.length - 1))
-      const y = chartBottom - (item.count / maxValue) * chartHeight
-
-      ctx.beginPath()
-      ctx.arc(x, y, 4, 0, Math.PI * 2)
-      ctx.fillStyle = "#276EF1"
-      ctx.fill()
-      ctx.strokeStyle = "#fff"
-      ctx.lineWidth = 1
-      ctx.stroke()
-
-      // Draw value above point
-      ctx.fillStyle = "#333"
-      ctx.textAlign = "center"
-      ctx.fillText(item.count.toString(), x, y - 10)
-    })
-  }
-
-  const renderMapPreview = (canvas: HTMLCanvasElement, potholes: Pothole[]) => {
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    // Set canvas dimensions
-    canvas.width = 400
-    canvas.height = 200
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Draw title
-    ctx.fillStyle = "#333"
-    ctx.font = "14px Arial"
-    ctx.textAlign = "center"
-    ctx.fillText("Pothole Location Map", canvas.width / 2, 20)
-
-    // Draw map background
-    ctx.fillStyle = "#f0f0f0"
-    ctx.fillRect(20, 30, canvas.width - 40, canvas.height - 50)
-
-    // Draw grid lines
-    ctx.strokeStyle = "#ddd"
-    ctx.lineWidth = 0.5
-
-    // Vertical grid lines
-    for (let x = 40; x < canvas.width - 20; x += 20) {
-      ctx.beginPath()
-      ctx.moveTo(x, 30)
-      ctx.lineTo(x, canvas.height - 20)
-      ctx.stroke()
+    // Generate recommendations
+    const recommendations = []
+    if (highSeverityCount > 0) {
+      recommendations.push(`Immediate attention required for ${highSeverityCount} high-severity anomalies`)
+    }
+    if (avgConfidence < 70) {
+      recommendations.push('Detection confidence is below optimal threshold - consider manual verification')
+    }
+    if (hotspotArray.length > 0) {
+      recommendations.push(`Focus maintenance efforts on hotspot areas with ${hotspotArray[0].count}+ reported issues`)
+    }
+    if (totalAnomalies > totalReports * 2) {
+      recommendations.push('High anomaly density detected - comprehensive road inspection recommended')
     }
 
-    // Horizontal grid lines
-    for (let y = 50; y < canvas.height - 20; y += 20) {
-      ctx.beginPath()
-      ctx.moveTo(20, y)
-      ctx.lineTo(canvas.width - 20, y)
-      ctx.stroke()
+    return {
+      totalReports,
+      totalAnomalies,
+      avgConfidence,
+      severityBreakdown,
+      statusBreakdown,
+      anomalyTypes,
+      timeAnalysis,
+      locationHotspots: hotspotArray,
+      riskAssessment,
+      recommendations
     }
-
-    // Find min/max coordinates to scale the map
-    let minLat = Math.min(...potholes.map((p) => p.latitude))
-    let maxLat = Math.max(...potholes.map((p) => p.latitude))
-    let minLng = Math.min(...potholes.map((p) => p.longitude))
-    let maxLng = Math.max(...potholes.map((p) => p.longitude))
-
-    // Add some padding
-    const latPadding = (maxLat - minLat) * 0.1
-    const lngPadding = (maxLng - minLng) * 0.1
-
-    minLat -= latPadding
-    maxLat += latPadding
-    minLng -= lngPadding
-    maxLng += lngPadding
-
-    // If all points are at the same location, create a small area around it
-    if (minLat === maxLat) {
-      minLat -= 0.001
-      maxLat += 0.001
-    }
-    if (minLng === maxLng) {
-      minLng -= 0.001
-      maxLng += 0.001
-    }
-
-    // Draw potholes
-    potholes.forEach((pothole) => {
-      // Convert coordinates to canvas position
-      const x = 20 + ((pothole.longitude - minLng) / (maxLng - minLng)) * (canvas.width - 40)
-      const y = 30 + ((maxLat - pothole.latitude) / (maxLat - minLat)) * (canvas.height - 50)
-
-      // Determine color based on severity
-      let color
-      if (pothole.severity >= 7) {
-        color = "#FF424F" // High
-      } else if (pothole.severity >= 4) {
-        color = "#FF9E0D" // Medium
-      } else {
-        color = "#05A357" // Low
-      }
-
-      // Draw pothole
-      ctx.beginPath()
-      ctx.arc(x, y, 4, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.fill()
-
-      // Draw glow effect
-      const gradient = ctx.createRadialGradient(x, y, 2, x, y, 8)
-      gradient.addColorStop(0, color + "80")
-      gradient.addColorStop(1, "transparent")
-
-      ctx.beginPath()
-      ctx.arc(x, y, 8, 0, Math.PI * 2)
-      ctx.fillStyle = gradient
-      ctx.fill()
-    })
-
-    // Draw legend
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
-    ctx.fillRect(canvas.width - 90, 35, 70, 65)
-    ctx.strokeStyle = "#ccc"
-    ctx.strokeRect(canvas.width - 90, 35, 70, 65)
-
-    ctx.fillStyle = "#333"
-    ctx.font = "10px Arial"
-    ctx.textAlign = "left"
-    ctx.fillText("Severity", canvas.width - 85, 45)
-
-    // High
-    ctx.beginPath()
-    ctx.arc(canvas.width - 80, 55, 3, 0, Math.PI * 2)
-    ctx.fillStyle = "#FF424F"
-    ctx.fill()
-    ctx.fillStyle = "#333"
-    ctx.fillText("High", canvas.width - 70, 58)
-
-    // Medium
-    ctx.beginPath()
-    ctx.arc(canvas.width - 80, 70, 3, 0, Math.PI * 2)
-    ctx.fillStyle = "#FF9E0D"
-    ctx.fill()
-    ctx.fillStyle = "#333"
-    ctx.fillText("Medium", canvas.width - 70, 73)
-
-    // Low
-    ctx.beginPath()
-    ctx.arc(canvas.width - 80, 85, 3, 0, Math.PI * 2)
-    ctx.fillStyle = "#05A357"
-    ctx.fill()
-    ctx.fillStyle = "#333"
-    ctx.fillText("Low", canvas.width - 70, 88)
   }
 
   const generateReport = async () => {
     setIsGenerating(true)
 
     try {
-      // Create a new PDF document
+      const { jsPDF } = await import('jspdf')
       const pdf = new jsPDF()
+      const analytics = generateAnalytics()
 
-      // Add title
-      pdf.setFontSize(20)
-      pdf.setTextColor(33, 33, 33)
-      pdf.text("ROAD ANOMALY REPORT", 105, 20, { align: "center" })
+      // Page setup
+      const pageWidth = 210
+      const margin = 20
+      const contentWidth = pageWidth - 2 * margin
+      let yPos = 20
 
-      // Add report information
+      // Header
+      pdf.setFillColor(220, 38, 38) // red-600
+      pdf.rect(0, 0, pageWidth, 35, 'F')
+      
+      pdf.setTextColor(255, 255, 255)
+      pdf.setFontSize(22)
+      pdf.text('ROAD ANOMALY DETECTION REPORT', pageWidth / 2, 15, { align: 'center' })
       pdf.setFontSize(12)
-      pdf.setTextColor(66, 66, 66)
-      pdf.text(`Location: ${locationName}`, 20, 35)
-      pdf.text(`Search Radius: ${searchRadius} km`, 20, 42)
-      pdf.text(`Total Potholes: ${potholes.length}`, 20, 49)
-      pdf.text(`Report Date: ${new Date().toLocaleDateString()}`, 20, 56)
+      pdf.text('Comprehensive Analysis & Risk Assessment', pageWidth / 2, 25, { align: 'center' })
 
-      // Add severity summary
-      const highSeverity = potholes.filter((p) => p.severity >= 7).length
-      const mediumSeverity = potholes.filter((p) => p.severity >= 4 && p.severity < 7).length
-      const lowSeverity = potholes.filter((p) => p.severity < 4).length
+      yPos = 50
 
+      // Report metadata
+      pdf.setTextColor(55, 65, 81)
+      pdf.setFontSize(11)
+      const reportDate = new Date().toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      
+      pdf.text(`Location: ${locationName}`, margin, yPos)
+      pdf.text(`Search Radius: ${searchRadius} km`, margin, yPos + 6)
+      pdf.text(`Report Generated: ${reportDate}`, margin, yPos + 12)
+      pdf.text(`Analysis Period: ${filters.days || 30} days`, margin, yPos + 18)
+      
+      yPos += 35
+
+      // Executive Summary
+      pdf.setFillColor(239, 246, 255) // blue-50
+      pdf.rect(margin - 5, yPos - 5, contentWidth + 10, 25, 'F')
+      
+      pdf.setFontSize(16)
+      pdf.setTextColor(30, 58, 138) // blue-800
+      pdf.text('EXECUTIVE SUMMARY', margin, yPos + 5)
+      
+      pdf.setFontSize(11)
+      pdf.setTextColor(55, 65, 81)
+      pdf.text(`Risk Level: ${analytics.riskAssessment}`, margin + 120, yPos + 5)
+      pdf.text(`Detection Reports: ${analytics.totalReports}`, margin, yPos + 12)
+      pdf.text(`Total Anomalies: ${analytics.totalAnomalies}`, margin + 60, yPos + 12)
+      pdf.text(`Avg Confidence: ${analytics.avgConfidence.toFixed(1)}%`, margin + 120, yPos + 12)
+
+      yPos += 35
+
+      // Severity Analysis
       pdf.setFontSize(14)
-      pdf.setTextColor(33, 33, 33)
-      pdf.text("SEVERITY SUMMARY", 20, 70)
+      pdf.setTextColor(31, 41, 55)
+      pdf.text('SEVERITY ANALYSIS', margin, yPos)
+      yPos += 10
 
       pdf.setFontSize(10)
-      pdf.setTextColor(66, 66, 66)
-      pdf.text(`High: ${highSeverity} (${((highSeverity / potholes.length) * 100 || 0).toFixed(1)}%)`, 20, 78)
-      pdf.text(`Medium: ${mediumSeverity} (${((mediumSeverity / potholes.length) * 100 || 0).toFixed(1)}%)`, 20, 85)
-      pdf.text(`Low: ${lowSeverity} (${((lowSeverity / potholes.length) * 100 || 0).toFixed(1)}%)`, 20, 92)
+      pdf.setTextColor(75, 85, 99)
+      Object.entries(analytics.severityBreakdown).forEach(([severity, count], index) => {
+        const percentage = ((count / analytics.totalReports) * 100).toFixed(1)
+        pdf.text(`• ${severity}: ${count} reports (${percentage}%)`, margin + 5, yPos + (index * 6))
+      })
+      yPos += Object.keys(analytics.severityBreakdown).length * 6 + 15
 
-      // Add severity chart
-      if (severityChartRef.current) {
-        const severityChartImg = severityChartRef.current.toDataURL("image/png")
-        pdf.addImage(severityChartImg, "PNG", 105, 65, 85, 42.5)
-      }
-
-      // Add timeline chart
+      // Anomaly Types
       pdf.setFontSize(14)
-      pdf.setTextColor(33, 33, 33)
-      pdf.text("REPORTS OVER TIME", 20, 110)
+      pdf.setTextColor(31, 41, 55)
+      pdf.text('ANOMALY CLASSIFICATION', margin, yPos)
+      yPos += 10
 
-      if (timelineChartRef.current) {
-        const timelineChartImg = timelineChartRef.current.toDataURL("image/png")
-        pdf.addImage(timelineChartImg, "PNG", 20, 115, 170, 42.5)
+      pdf.setFontSize(10)
+      pdf.setTextColor(75, 85, 99)
+      const sortedAnomalies = Object.entries(analytics.anomalyTypes)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 8)
+
+      sortedAnomalies.forEach(([type, count], index) => {
+        const percentage = ((count / analytics.totalAnomalies) * 100).toFixed(1)
+        pdf.text(`• ${type}: ${count} detections (${percentage}%)`, margin + 5, yPos + (index * 6))
+      })
+      yPos += sortedAnomalies.length * 6 + 15
+
+      // Location Hotspots
+      if (analytics.locationHotspots.length > 0) {
+        pdf.setFontSize(14)
+        pdf.setTextColor(31, 41, 55)
+        pdf.text('HIGH-RISK LOCATIONS', margin, yPos)
+        yPos += 10
+
+        pdf.setFontSize(10)
+        pdf.setTextColor(75, 85, 99)
+        analytics.locationHotspots.slice(0, 5).forEach((hotspot: any, index) => {
+          const severityInfo = Object.entries(hotspot.severities)
+            .map(([sev, cnt]) => `${sev}: ${cnt}`)
+            .join(', ')
+          pdf.text(`${index + 1}. Lat: ${hotspot.lat}, Lng: ${hotspot.lng}`, margin + 5, yPos)
+          pdf.text(`   ${hotspot.count} reports [${severityInfo}]`, margin + 10, yPos + 4)
+          yPos += 12
+        })
+        yPos += 10
       }
 
-      // Add map preview
-      pdf.setFontSize(14)
-      pdf.setTextColor(33, 33, 33)
-      pdf.text("LOCATION MAP", 20, 165)
+      // Recommendations
+      if (analytics.recommendations.length > 0) {
+        pdf.setFillColor(254, 243, 199) // yellow-100
+        pdf.rect(margin - 5, yPos - 5, contentWidth + 10, 8 + analytics.recommendations.length * 8, 'F')
+        
+        pdf.setFontSize(14)
+        pdf.setTextColor(146, 64, 14) // yellow-800
+        pdf.text('RECOMMENDATIONS', margin, yPos + 5)
+        yPos += 15
 
-      if (mapRef.current) {
-        const mapImg = mapRef.current.toDataURL("image/png")
-        pdf.addImage(mapImg, "PNG", 20, 170, 170, 42.5)
+        pdf.setFontSize(10)
+        pdf.setTextColor(92, 25, 2) // yellow-900
+        analytics.recommendations.forEach((rec, index) => {
+          const lines = pdf.splitTextToSize(`${index + 1}. ${rec}`, contentWidth - 10)
+          pdf.text(lines, margin + 5, yPos)
+          yPos += lines.length * 5 + 3
+        })
+        yPos += 10
       }
 
-      // Add new page for pothole details
+      // New page for detailed findings
       pdf.addPage()
+      yPos = 20
+      
+      pdf.setFontSize(18)
+      pdf.setTextColor(31, 41, 55)
+      pdf.text('DETAILED DETECTION REPORTS', margin, yPos)
+      yPos += 15
 
-      // Add pothole details table
-      pdf.setFontSize(14)
-      pdf.setTextColor(33, 33, 33)
-      pdf.text("POTHOLE DETAILS", 105, 20, { align: "center" })
+      // Sort detections by severity and confidence
+      const sortedDetections = [...detectionData]
+        .sort((a, b) => {
+          const severityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1, UNKNOWN: 0 }
+          const aSeverity = severityOrder[a.detection?.highestSeverity as keyof typeof severityOrder] || 0
+          const bSeverity = severityOrder[b.detection?.highestSeverity as keyof typeof severityOrder] || 0
+          
+          if (aSeverity !== bSeverity) return bSeverity - aSeverity
+          return (b.detection?.averageConfidence || 0) - (a.detection?.averageConfidence || 0)
+        })
 
-      // Table headers
-      pdf.setFontSize(10)
-      pdf.setTextColor(66, 66, 66)
-      pdf.text("ID", 20, 30)
-      pdf.text("Severity", 60, 30)
-      pdf.text("Location", 90, 30)
-      pdf.text("Date Reported", 140, 30)
-      pdf.text("Reported By", 175, 30)
-
-      // Draw header line
-      pdf.setDrawColor(200, 200, 200)
-      pdf.line(20, 32, 190, 32)
-
-      // Table rows
-      let y = 40
-      potholes.slice(0, 20).forEach((pothole, index) => {
-        pdf.setFontSize(8)
-        pdf.setTextColor(66, 66, 66)
-
-        // Alternate row background
-        if (index % 2 === 1) {
-          pdf.setFillColor(245, 245, 245)
-          pdf.rect(20, y - 5, 170, 8, "F")
-        }
-
-        pdf.text(pothole.id.substring(0, 8), 20, y)
-        pdf.text(getSeverityLabel(pothole.severity), 60, y)
-        pdf.text(`${pothole.latitude.toFixed(6)}, ${pothole.longitude.toFixed(6)}`, 90, y)
-        pdf.text(formatDate(pothole.dateReported), 140, y)
-        pdf.text(pothole.reportedBy, 175, y)
-
-        y += 8
-
-        // Add new page if needed
-        if (y > 280 && index < potholes.length - 1) {
+      sortedDetections.slice(0, 20).forEach((data, index) => {
+        if (yPos > 270) {
           pdf.addPage()
-
-          // Add headers on new page
-          y = 20
-          pdf.setFontSize(10)
-          pdf.setTextColor(66, 66, 66)
-          pdf.text("ID", 20, y)
-          pdf.text("Severity", 60, y)
-          pdf.text("Location", 90, y)
-          pdf.text("Date Reported", 140, y)
-          pdf.text("Reported By", 175, y)
-
-          // Draw header line
-          pdf.setDrawColor(200, 200, 200)
-          pdf.line(20, y + 2, 190, y + 2)
-
-          y = 30
+          yPos = 20
         }
+
+        // Detection header with severity color coding
+        const severityColors = {
+          HIGH: [239, 68, 68],    // red-500
+          MEDIUM: [249, 115, 22], // orange-500
+          LOW: [34, 197, 94],     // green-500
+          UNKNOWN: [107, 114, 128] // gray-500
+        }
+        
+        const severity = data.detection?.highestSeverity || 'UNKNOWN'
+        const [r, g, b] = severityColors[severity as keyof typeof severityColors] || [107, 114, 128]
+        
+        pdf.setFillColor(r, g, b)
+        pdf.rect(margin - 2, yPos - 3, 4, 15, 'F')
+        
+        pdf.setFillColor(248, 250, 252)
+        pdf.rect(margin + 5, yPos - 3, contentWidth - 5, 15, 'F')
+        
+        pdf.setFontSize(12)
+        pdf.setTextColor(31, 41, 55)
+        pdf.text(`Report #${index + 1} - ${severity} Severity`, margin + 8, yPos + 5)
+        
+        const confidence = data.detection?.averageConfidence || 0
+        pdf.text(`Confidence: ${confidence.toFixed(1)}%`, margin + 120, yPos + 5)
+
+        yPos += 18
+
+        // Detection details
+        pdf.setFontSize(9)
+        pdf.setTextColor(75, 85, 99)
+        
+        const createdDate = new Date(data.metadata?.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+        
+        pdf.text(`Location: ${data.location?.latitude?.toFixed(6)}, ${data.location?.longitude?.toFixed(6)}`, margin + 8, yPos)
+        pdf.text(`Reported: ${createdDate}`, margin + 8, yPos + 5)
+        pdf.text(`Reporter: ${data.metadata?.username || 'Anonymous'}`, margin + 8, yPos + 10)
+        pdf.text(`Total Anomalies: ${data.detection?.totalDetections || 0}`, margin + 100, yPos)
+        pdf.text(`Processing: ${data.detection?.processingTimeMs || 0}ms`, margin + 100, yPos + 5)
+        pdf.text(`Status: ${data.detection?.status || 'Unknown'}`, margin + 100, yPos + 10)
+
+        yPos += 18
+
+        // Individual anomaly details
+        if (data.detection?.details && data.detection.details.length > 0) {
+          pdf.setFontSize(8)
+          pdf.setTextColor(107, 114, 128)
+          pdf.text('Detected Anomalies:', margin + 8, yPos)
+          yPos += 5
+
+          data.detection.details.slice(0, 3).forEach((detection, detIndex) => {
+            pdf.text(`  ${detIndex + 1}. ${detection.class} (${detection.confidence.toFixed(1)}% confidence, ${detection.severity} severity)`, margin + 12, yPos)
+            yPos += 4
+          })
+
+          if (data.detection.details.length > 3) {
+            pdf.text(`  ... and ${data.detection.details.length - 3} more`, margin + 12, yPos)
+            yPos += 4
+          }
+        }
+
+        // Notes if available
+        if (data.metadata?.notes) {
+          pdf.setFontSize(8)
+          pdf.setTextColor(75, 85, 99)
+          const noteLines = pdf.splitTextToSize(`Notes: ${data.metadata.notes}`, contentWidth - 20)
+          pdf.text(noteLines, margin + 8, yPos + 3)
+          yPos += noteLines.length * 4
+        }
+
+        yPos += 15
       })
 
-      // Add note if there are more potholes
-      if (potholes.length > 20) {
-        pdf.setFontSize(9)
-        pdf.setTextColor(100, 100, 100)
-        pdf.text(
-          `Note: Showing 20 of ${potholes.length} potholes. Download the full data for complete details.`,
-          105,
-          y + 10,
-          { align: "center" },
-        )
+      if (detectionData.length > 20) {
+        pdf.setFontSize(10)
+        pdf.setTextColor(107, 114, 128)
+        pdf.text(`Note: Showing top 20 of ${detectionData.length} total detection reports`, margin, yPos + 10)
+      }
+
+      // Footer with metadata
+      const totalPages = pdf.internal.pages.length - 1
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i)
+        pdf.setFontSize(8)
+        pdf.setTextColor(107, 114, 128)
+        pdf.text(`Page ${i} of ${totalPages}`, pageWidth - margin, 290, { align: 'right' })
+        pdf.text(`Generated by Road Anomaly Detection System`, margin, 290)
       }
 
       // Save the PDF
-      pdf.save(`RoadSense_Report_${locationName}_${new Date().toISOString().split("T")[0]}.pdf`)
+      const fileName = `RoadAnomalyReport_${locationName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
+      pdf.save(fileName)
+
     } catch (error) {
-      console.error("Error generating report:", error)
-      alert("Failed to generate report. Please try again.")
+      console.error('Error generating report:', error)
+      alert('Failed to generate report. Please try again.')
     } finally {
       setIsGenerating(false)
     }
   }
 
-  // Helper functions
-  const getSeverityLabel = (severity: number): string => {
-    if (severity >= 7) return "High"
-    if (severity >= 4) return "Medium"
-    return "Low"
-  }
-
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString()
-    } catch {
-      return "Unknown"
-    }
-  }
+  const analytics = generateAnalytics()
 
   return (
-    <div>
-      {/* Hidden canvases for chart generation */}
-      <div className="hidden">
-        <canvas ref={severityChartRef} width="400" height="200"></canvas>
-        <canvas ref={timelineChartRef} width="400" height="200"></canvas>
-        <canvas ref={mapRef} width="400" height="200"></canvas>
-      </div>
+    <div className="space-y-4">
+      {/* Report Preview Stats
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-gray-900">{analytics.totalReports}</div>
+          <div className="text-sm text-gray-600">Reports</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-gray-900">{analytics.totalAnomalies}</div>
+          <div className="text-sm text-gray-600">Anomalies</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-gray-900">{analytics.avgConfidence.toFixed(1)}%</div>
+          <div className="text-sm text-gray-600">Avg Confidence</div>
+        </div>
+        <div className="text-center">
+          <div className={`text-2xl font-bold ${
+            analytics.riskAssessment === 'HIGH' ? 'text-red-600' :
+            analytics.riskAssessment === 'MEDIUM' ? 'text-orange-600' : 'text-green-600'
+          }`}>
+            {analytics.riskAssessment}
+          </div>
+          <div className="text-sm text-gray-600">Risk Level</div>
+        </div>
+      </div> */}
 
+      {/* Download button */}
       <Button
         onClick={generateReport}
-        disabled={isGenerating || potholes.length === 0}
-        className="flex items-center gap-2"
+        disabled={isGenerating || !detectionData || detectionData.length === 0}
+        className="flex items-center gap-2 w-full"
+        size="lg"
       >
         {isGenerating ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Generating PDF...
+            Generating Comprehensive Report...
           </>
         ) : (
           <>
             <FileDown className="h-4 w-4" />
-            Download PDF Report
+            Download Report ({detectionData?.length || 0} detections)
           </>
         )}
       </Button>
