@@ -33,7 +33,7 @@ export function Layout({ children }: LayoutProps) {
   ]
 
   const isActive = (path: string) => {
-    return pathname === path
+    return pathname === path || (pathname.startsWith(path) && path !== "/home")
   }
 
   return (

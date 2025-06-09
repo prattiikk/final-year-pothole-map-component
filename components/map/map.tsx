@@ -13,6 +13,7 @@ import { MapSidebar } from "./map-sidebar"
 import { HeatLayer, HeatmapLegend } from "@/components/map/heatmap-layer"
 // Import the ReportGenerator component
 import { ReportGenerator } from "@/components/map/report-generator"
+import { markPotholeAsFixed } from "@/utils/api"
 
 interface Pothole {
   id: string
@@ -84,6 +85,54 @@ const PotholeMap = () => {
   const [showHeatmap, setShowHeatmap] = useState(false)
   const [currentMapLayer, setCurrentMapLayer] = useState<MapLayerOption>(mapLayers[0]) // Default to first layer
 
+  const [isFixingPothole, setIsFixingPothole] = useState(false)
+  const [fixingPotholeId, setFixingPotholeId] = useState<string | null>(null)
+
+  // Add this function to handle marking pothole as fixed
+  const handleReportFixed = async (potholeId: string) => {
+    if (!potholeId) return
+
+    try {
+      setIsFixingPothole(true)
+      setFixingPotholeId(potholeId)
+
+      // Show confirmation dialog (optional)
+      const confirmed = window.confirm(
+        'Are you sure this pothole has been fixed? This action will remove it from the map.'
+      )
+
+      if (!confirmed) {
+        setIsFixingPothole(false)
+        setFixingPotholeId(null)
+        return
+      }
+
+      // Call the API to mark as fixed
+      await markPotholeAsFixed(potholeId)
+
+      // Remove the pothole from local state
+      setPotholes(prevPotholes =>
+        prevPotholes.filter(pothole => pothole.id !== potholeId)
+      )
+
+      // Clear selected pothole if it was the one being fixed
+      if (selectedPothole?.id === potholeId) {
+        setSelectedPothole(null)
+      }
+
+      // Show success message (you can use a toast library instead)
+      alert('Pothole marked as fixed and removed successfully!')
+
+    } catch (error) {
+      console.error('Error reporting pothole as fixed:', error)
+      // Show error message
+      alert('Failed to mark pothole as fixed. Please try again.')
+    } finally {
+      setIsFixingPothole(false)
+      setFixingPotholeId(null)
+    }
+  }
+
   const mapRef = useRef<L.Map | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -129,7 +178,7 @@ const PotholeMap = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const userLocation = {
-            lat: position.coords.latitude + 0.01,
+            lat: position.coords.latitude,
             lng: position.coords.longitude,
           }
           setLocation(userLocation)
@@ -633,6 +682,7 @@ const PotholeMap = () => {
                 location: {
                   latitude: pothole.latitude,
                   longitude: pothole.longitude,
+                  accuracy: 0, // Default or replace with actual accuracy if available
                 },
                 images: {
                   annotated: pothole.img,
@@ -808,8 +858,22 @@ const PotholeMap = () => {
               </div>
 
               <div className="pt-2">
-                <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg w-full">
-                  Report Fixed
+                <button
+                  onClick={() => handleReportFixed(selectedPothole?.id || '')}
+                  disabled={!selectedPothole || isFixingPothole || fixingPotholeId === selectedPothole?.id}
+                  className={`
+      py-2 px-4 rounded-lg w-full text-white font-medium
+      ${isFixingPothole && fixingPotholeId === selectedPothole?.id
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                    }
+      transition-colors duration-200
+    `}
+                >
+                  {isFixingPothole && fixingPotholeId === selectedPothole?.id
+                    ? 'Reporting Fixed...'
+                    : 'Report Fixed'
+                  }
                 </button>
               </div>
             </div>

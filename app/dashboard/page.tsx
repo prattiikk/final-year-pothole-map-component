@@ -8,16 +8,12 @@ import { motion } from "framer-motion"
 // Import our dashboard components
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { SeverityChart } from "@/components/dashboard/severity-chart"
-import { DetectionTypesChart } from "@/components/dashboard/detection-types-chart"
 import { ConfidenceChart } from "@/components/dashboard/confidence-chart"
-// import { MapOverview } from "@/components/dashboard/map-overview"
-const MapOverview = dynamic(() => import("@/components/dashboard/map-overview"), { ssr: false })
 
 import { DetectionTable } from "@/components/dashboard/detection-table"
 import { DashboardTabs } from "@/components/dashboard/dashboard-tabs"
 import { TabsContent } from "@/components/ui/tabs"
 import { UnifiedVisualizations } from "@/components/dashboard/unified-visualizations"
-import dynamic from "next/dynamic"
 
 // Define the types based on the API response
 type Detection = {
@@ -63,8 +59,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DetectionData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.006 }); // Default to NYC
-
+  const [userLocation, setUserLocation] = useState({ lat: 40.7128, lng: -74.006 }) // Default to NYC
 
   // Fetch data from API
   useEffect(() => {
@@ -76,8 +71,8 @@ export default function DashboardPage() {
           (position) => {
             setUserLocation({
               lat: position.coords.latitude,
-              lng: position.coords.longitude
-            });
+              lng: position.coords.longitude,
+            })
             fetchDetectionData(position.coords.latitude, position.coords.longitude)
           },
           (err) => {
@@ -112,13 +107,31 @@ export default function DashboardPage() {
     fetchData()
   }, [])
 
-  // Calculate total individual detections
+  // Function to handle marking detection as fixed
+  const handleMarkAsFixed = async (detectionId: string) => {
+    try {
+      const response = await fetch(`/api/detections/${detectionId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        // Remove the detection from local state
+        setData((prevData) => prevData.filter((item) => item.id !== detectionId))
+      } else {
+        console.error("Failed to mark detection as fixed")
+      }
+    } catch (error) {
+      console.error("Error marking detection as fixed:", error)
+    }
+  }
+
+  // Calculate total individual detections (all detections, not filtered by confidence)
   const totalIndividualDetections = useMemo(
     () => data.reduce((sum, item) => sum + item.detection.details.length, 0),
     [data],
   )
 
-  // Calculate average confidence
+  // Calculate average confidence (all detections)
   const averageConfidence = useMemo(() => {
     const allDetections = data.flatMap((d) => d.detection.details)
     if (allDetections.length === 0) return "0%"
@@ -127,59 +140,35 @@ export default function DashboardPage() {
     return `${avgConf.toFixed(1)}%`
   }, [data])
 
-  // Count critical severity detections
+  // Count critical severity detections (all detections)
   const criticalSeverityCount = useMemo(
     () => data.flatMap((d) => d.detection.details).filter((d) => d.severity === "CRITICAL").length,
     [data],
   )
 
-  // Prepare severity data for chart
+  // Prepare severity data for chart (only high confidence for charts)
   const severityData = useMemo(() => {
     const severityCounts: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 }
 
     data.forEach((item) => {
       item.detection.details.forEach((detection) => {
-        if (severityCounts[detection.severity]) {
-          severityCounts[detection.severity]++
-        } else {
-          severityCounts[detection.severity] = 1
+        if (detection.confidence > 0.5) {
+          const severity = detection.severity.toUpperCase()
+          if (severityCounts[severity] !== undefined) {
+            severityCounts[severity]++
+          }
         }
       })
     })
 
-    return Object.keys(severityCounts).map((key) => ({
+    return Object.entries(severityCounts).map(([key, value]) => ({
       name: key,
-      value: severityCounts[key],
-      color: key === "LOW" ? "#00C49F" : key === "MEDIUM" ? "#FFBB28" : key === "HIGH" ? "#FF8042" : "#FF6B6B",
+      value: value,
+      color: key === "LOW" ? "#10B981" : key === "MEDIUM" ? "#F59E0B" : key === "HIGH" ? "#EF4444" : "#DC2626",
     }))
   }, [data])
-  console.log("pie chart data -> ", severityData)
 
-  // Prepare detection types data for chart
-  const detectionTypesData = useMemo(() => {
-    const aggregatedCounts: Record<string, number> = {}
-
-    data.forEach((item) => {
-      if (item.detection.counts) {
-        Object.entries(item.detection.counts).forEach(([key, value]) => {
-          if (aggregatedCounts[key]) {
-            aggregatedCounts[key] += value
-          } else {
-            aggregatedCounts[key] = value
-          }
-        })
-      }
-    })
-
-    return Object.keys(aggregatedCounts)
-      .map((key) => ({
-        name: key,
-        count: aggregatedCounts[key],
-      }))
-      .sort((a, b) => b.count - a.count) // Sort by count descending
-  }, [data])
-
-  // Prepare confidence distribution data for chart
+  // Prepare confidence distribution data for chart (only high confidence)
   const confidenceData = useMemo(() => {
     const ranges = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     const distribution = ranges.map((max, i) => {
@@ -188,7 +177,7 @@ export default function DashboardPage() {
       let count = 0
       data.forEach((item) => {
         item.detection.details.forEach((detection) => {
-          if (detection.confidence >= min && detection.confidence < max) {
+          if (detection.confidence > 0.5 && detection.confidence >= min && detection.confidence < max) {
             count++
           }
         })
@@ -203,25 +192,7 @@ export default function DashboardPage() {
     return distribution
   }, [data])
 
-  // Prepare heatmap data
-  const heatmapData = useMemo(
-    () =>
-      data.map((item) => ({
-        latitude: item.location.latitude,
-        longitude: item.location.longitude,
-        severity:
-          item.detection.highestSeverity === "CRITICAL"
-            ? 8
-            : item.detection.highestSeverity === "HIGH"
-              ? 6
-              : item.detection.highestSeverity === "MEDIUM"
-                ? 4
-                : 2,
-      })),
-    [data],
-  )
-
-  // Prepare detection table data
+  // Prepare detection table data (ALL detections, not filtered by confidence)
   const detectionTableData = useMemo(
     () =>
       data
@@ -237,7 +208,7 @@ export default function DashboardPage() {
             longitude: item.location.longitude,
           },
         }))
-        .slice(0, 10), // Show only the 10 most recent
+        .slice(0, 20), // Show 20 most recent
     [data],
   )
 
@@ -300,20 +271,13 @@ export default function DashboardPage() {
             <TabsContent value="overview" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <SeverityChart data={severityData} />
-                <DetectionTypesChart data={detectionTypesData} />
-                <ConfidenceChart data={confidenceData} className="md:col-span-2" />
+                <ConfidenceChart data={confidenceData} />
               </div>
-            </TabsContent>
-
-            {/* Map Tab */}
-            <TabsContent value="map">
-              <MapOverview data={heatmapData} centerdata={[userLocation.lat, userLocation.lng]}
-              />
             </TabsContent>
 
             {/* Details Tab */}
             <TabsContent value="details">
-              <DetectionTable data={detectionTableData} />
+              <DetectionTable data={detectionTableData} onMarkAsFixed={handleMarkAsFixed} />
             </TabsContent>
           </DashboardTabs>
         </motion.div>
